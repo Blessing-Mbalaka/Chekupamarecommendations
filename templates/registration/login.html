@@ -1,23 +1,30 @@
 {% extends "base.html" %}
 
 {% block content %}
-<section class="hero-card">
-    <p class="eyebrow">Student Support Platform</p>
-    <h2>Sign in to continue learning</h2>
-    <p class="muted">Personalized recommendations, baseline assessments, and chatbot guidance all live here.</p>
-    <div class="demo-strip">
-        <h3>Demo Logins</h3>
-        <div class="demo-grid">
-            {% for account in demo_accounts %}
-                <article class="demo-card">
-                    <strong>{{ account.label }}</strong>
-                    <p><span>User:</span> {{ account.username }}</p>
-                    <p><span>Pass:</span> {{ account.password }}</p>
-                </article>
-            {% endfor %}
+<section class="hero-card hero-card--login">
+    <div class="login-intro">
+        <p class="eyebrow">Student Support Platform</p>
+        <h2>Sign in to continue learning</h2>
+        <p class="muted">Personalized recommendations, baseline assessments, and chatbot guidance all live here.</p>
+        <div class="demo-strip">
+            <h3>Demo Logins</h3>
+            <div class="demo-grid">
+                {% for account in demo_accounts %}
+                    <article class="demo-card">
+                        <strong>{{ account.label }}</strong>
+                        <p><span>User:</span> {{ account.username }}</p>
+                        <p><span>Pass:</span> {{ account.password }}</p>
+                    </article>
+                {% endfor %}
+            </div>
         </div>
     </div>
-    <form method="post" class="panel form-panel">
+    <form method="post" class="panel form-panel login-form-panel">
+        <div>
+            <p class="eyebrow">Access Portal</p>
+            <h3>Welcome back</h3>
+            <p class="muted">Use one of the demo accounts or your own credentials.</p>
+        </div>
         {% csrf_token %}
         {{ form.as_p }}
         <button type="submit" class="primary-button">Login</button>

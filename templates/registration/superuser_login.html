@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero-card hero-card--login">
+    <div class="login-intro">
+        <p class="eyebrow">Superuser Access</p>
+        <h2>Open the curation console</h2>
+        <p class="muted">This separate login is reserved for the superuser who manages global admin configs, API discovery, and manual uploads.</p>
+    </div>
+    <form method="post" class="panel form-panel login-form-panel">
+        <div>
+            <p class="eyebrow">Admin Console</p>
+            <h3>Restricted access</h3>
+            <p class="muted">Use the dedicated superuser credentials to continue.</p>
+        </div>
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit" class="primary-button">Enter console</button>
+    </form>
+</section>
+{% endblock %}

@@ -1,6 +1,8 @@
 from django.contrib import messages
+from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.views import LoginView
 from django.contrib.auth.decorators import login_required
+from django import forms
 from django.shortcuts import redirect, render
 
 from .forms import StudentProfileForm, UserProfileForm
@@ -17,6 +19,30 @@ class DemoLoginView(LoginView):
             {"label": "Lecturer Demo", "username": "demo_lecturer", "password": "Password123!"},
         ]
     }
+
+
+class SuperuserLoginForm(forms.Form):
+    username = forms.CharField()
+    password = forms.CharField(widget=forms.PasswordInput)
+
+
+def superuser_login_view(request):
+    if request.user.is_authenticated and request.user.is_superuser:
+        return redirect("core:curation_portal")
+
+    form = SuperuserLoginForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        user = authenticate(
+            request,
+            username=form.cleaned_data["username"],
+            password=form.cleaned_data["password"],
+        )
+        if user and user.is_superuser:
+            login(request, user)
+            return redirect("core:curation_portal")
+        logout(request)
+        messages.error(request, "Only a superuser can access the curation admin console.")
+    return render(request, "registration/superuser_login.html", {"form": form})
 
 
 @login_required

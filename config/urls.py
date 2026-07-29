@@ -20,7 +20,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.urls import include, path
 
-from accounts.views import DemoLoginView
+from accounts.views import DemoLoginView, superuser_login_view
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -34,6 +34,7 @@ urlpatterns = [
         DemoLoginView.as_view(),
         name='login',
     ),
+    path('curation/login/', superuser_login_view, name='superuser_login'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
 ]
 

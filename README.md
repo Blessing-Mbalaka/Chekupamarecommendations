@@ -55,6 +55,7 @@ The chat request path is intentionally kept fast:
 - Crossref: free and useful for DOI and paper metadata lookup.
 - Semantic Scholar: useful for paper discovery; an API key is optional for low-volume usage but worth supporting.
 - Springer Nature: supported as an external provider using `api.springernature.com` endpoints. Current official docs show `meta/v2`, `metadata`, `openaccess`, and full-text/TDM paths under that host.
+- Google Scholar (SerpApi): supported as an optional curated source using SerpApi's `engine=google_scholar` endpoint. As of July 29, 2026, SerpApi documents the endpoint as `https://serpapi.com/search?engine=google_scholar`, with free-tier and paid usage plans depending on quota.
 - YouTube: this app currently treats YouTube as manual-only. Known URLs can be stored and embedded without using the YouTube Data API.
 - Scopus: usually commercial or institution-gated, so I have left it as a future connector rather than a default path.
 

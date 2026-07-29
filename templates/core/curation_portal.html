@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="panel">
+    <p class="eyebrow">Superuser Curation</p>
+    <h2>Admin curation console</h2>
+    <p class="muted">Upload internal materials manually, search reputable academic APIs, import curated sources, and jump into Django admin configs.</p>
+    <div class="button-row">
+        <a href="/admin/" class="secondary-button">Open Django Admin</a>
+        <a href="{% url 'core:health' %}" class="ghost-button">View system health</a>
+    </div>
+</section>
+
+<section class="card-grid">
+    <article class="panel">
+        <h3>Manual upload</h3>
+        <form method="post" enctype="multipart/form-data" class="form-panel">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="upload_material">
+            {{ upload_form.as_p }}
+            <button type="submit" class="primary-button">Upload material</button>
+        </form>
+    </article>
+
+    <article class="panel">
+        <h3>API discovery</h3>
+        <form method="post" class="form-panel">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="search_discovery">
+            {{ search_form.as_p }}
+            <div class="button-row">
+                <button type="submit" class="primary-button">Search sources</button>
+                <button type="submit" formaction="{% url 'core:curation_portal' %}" name="action" value="session_autofetch" class="secondary-button" {% if auto_fetch_ran %}disabled{% endif %}>
+                    {% if auto_fetch_ran %}Auto-fetch done{% else %}Auto-fetch once/session{% endif %}
+                </button>
+            </div>
+        </form>
+    </article>
+    <article class="panel">
+        <h3>Provider readiness</h3>
+        {% for item in provider_health %}
+            <div class="health-row">
+                <strong>{{ item.name }}</strong>
+                <span class="provider-badge provider-badge--{{ item.status }}">{{ item.status }}</span>
+                <p class="muted">{{ item.endpoint }}</p>
+            </div>
+        {% endfor %}
+    </article>
+    <article class="panel">
+        <h3>Recent curated materials</h3>
+        {% for material in recent_materials %}
+            <a class="list-link" href="{{ material.get_absolute_url }}">
+                {{ material.title }}
+                <span>{{ material.source_provider|default:material.source_bucket }}</span>
+            </a>
+        {% empty %}
+            <p class="muted">No materials have been curated yet.</p>
+        {% endfor %}
+    </article>
+</section>
+
+{% if discovery_payload %}
+<section class="panel">
+    <h3>Discovery results</h3>
+    <p class="muted">Results from reputable academic sources. Review first, then import into the system cleanly.</p>
+    <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="import_discovery">
+        <button type="submit" class="primary-button">Import all results</button>
+    </form>
+    <div class="card-grid">
+        {% for provider_name, results in discovery_payload.grouped_results.items %}
+            <article class="panel">
+                <h3>{{ provider_name }}</h3>
+                {% for result in results %}
+                    <div class="list-link list-link--static">
+                        <span>{{ result.title }}</span>
+                        <span>{{ result.year|default:"Unknown" }}</span>
+                    </div>
+                {% empty %}
+                    <p class="muted">No results from this provider.</p>
+                {% endfor %}
+            </article>
+        {% endfor %}
+    </div>
+{% endif %}
+{% endblock %}

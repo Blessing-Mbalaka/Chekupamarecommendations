@@ -19,6 +19,8 @@ SPRINGER_META_ENDPOINT = os.getenv("SPRINGER_META_ENDPOINT", "/meta/v2/json")
 SPRINGER_OPENACCESS_ENDPOINT = os.getenv("SPRINGER_OPENACCESS_ENDPOINT", "/openaccess/json")
 SPRINGER_METADATA_ENDPOINT = os.getenv("SPRINGER_METADATA_ENDPOINT", "/metadata/json")
 SPRINGER_FULLTEXT_ENDPOINT = os.getenv("SPRINGER_FULLTEXT_ENDPOINT", "/xmldata/jats")
+SERPAPI_API_KEY = os.getenv("SERPAPI_API_KEY", "")
+SERPAPI_BASE_URL = os.getenv("SERPAPI_BASE_URL", "https://serpapi.com/search")
 PROVIDER_REQUEST_TIMEOUT = float(os.getenv("PROVIDER_REQUEST_TIMEOUT_SECONDS", "2.5"))
 PROVIDER_DISCOVERY_BUDGET = float(os.getenv("PROVIDER_DISCOVERY_BUDGET_SECONDS", "5"))
 
@@ -169,23 +171,68 @@ def search_springer(query: str, endpoint_path: str | None = None, page_size: int
     return results
 
 
-def discover_external_content(query: str, limit_per_provider: int = 3):
+def search_serpapi_scholar(query: str, page_size: int = 5, timeout_seconds: float = PROVIDER_REQUEST_TIMEOUT):
+    params = {
+        "engine": "google_scholar",
+        "q": query,
+        "num": page_size,
+        "api_key": SERPAPI_API_KEY,
+    }
+    url = SERPAPI_BASE_URL + "?" + parse.urlencode(params)
+    data = _get_json(url, timeout_seconds=timeout_seconds)
+    results = []
+    for item in data.get("organic_results", []):
+        publication_info = item.get("publication_info", {}).get("summary", "")
+        links = item.get("resources", []) or []
+        pdf_url = next((resource.get("link", "") for resource in links if resource.get("file_format") == "PDF"), "")
+        results.append(
+            {
+                "title": item.get("title", ""),
+                "year": item.get("year"),
+                "source_provider": "Google Scholar (SerpApi)",
+                "source_endpoint": SERPAPI_BASE_URL,
+                "source_type": Material.SourceType.PAPER,
+                "original_source_url": item.get("link", ""),
+                "external_url": item.get("link", ""),
+                "source_citation": publication_info,
+                "source_record_id": item.get("result_id", ""),
+                "authors": publication_info,
+                "description": item.get("snippet", ""),
+                "pdf_url": pdf_url,
+            }
+        )
+    return results
+
+
+def discover_external_content(query: str, limit_per_provider: int = 3, selected_providers=None):
     providers = []
     merged_results = []
+    selected = set(
+        selected_providers
+        or ["OpenAlex", "Crossref", "Semantic Scholar", "Springer Nature", "Google Scholar (SerpApi)", "YouTube"]
+    )
 
     configured_providers = []
-    if OPENALEX_API_KEY:
+    if "OpenAlex" in selected and OPENALEX_API_KEY:
         configured_providers.append(("OpenAlex", lambda: search_openalex(query, per_page=limit_per_provider)))
-    else:
+    elif "OpenAlex" in selected:
         providers.append(_provider_payload("OpenAlex", "missing_key", message="No OPENALEX_API_KEY configured."))
 
-    configured_providers.append(("Crossref", lambda: search_crossref(query, rows=limit_per_provider)))
-    configured_providers.append(("Semantic Scholar", lambda: search_semantic_scholar(query, limit=limit_per_provider)))
+    if "Crossref" in selected:
+        configured_providers.append(("Crossref", lambda: search_crossref(query, rows=limit_per_provider)))
+    if "Semantic Scholar" in selected:
+        configured_providers.append(("Semantic Scholar", lambda: search_semantic_scholar(query, limit=limit_per_provider)))
 
-    if SPRINGER_API_KEY:
+    if "Springer Nature" in selected and SPRINGER_API_KEY:
         configured_providers.append(("Springer Nature", lambda: search_springer(query, page_size=limit_per_provider)))
-    else:
+    elif "Springer Nature" in selected:
         providers.append(_provider_payload("Springer Nature", "missing_key", message="No SPRINGER_API_KEY configured."))
+    if "Google Scholar (SerpApi)" in selected and SERPAPI_API_KEY:
+        configured_providers.append(
+            ("Google Scholar (SerpApi)", lambda: search_serpapi_scholar(query, page_size=limit_per_provider))
+        )
+    elif "Google Scholar (SerpApi)" in selected:
+        providers.append(_provider_payload("Google Scholar (SerpApi)", "missing_key", message="No SERPAPI_API_KEY configured."))
 
     future_map = {}
     with ThreadPoolExecutor(max_workers=max(1, len(configured_providers))) as executor:
@@ -206,6 +253,8 @@ def discover_external_content(query: str, limit_per_provider: int = 3):
                         status = "quota_exhausted" if getattr(exc, "code", None) == 429 else "unavailable"
                     elif name == "Springer Nature":
                         status = "quota_exhausted" if getattr(exc, "code", None) in {401, 403, 429} else "unavailable"
+                    elif name == "Google Scholar (SerpApi)":
+                        status = "quota_exhausted" if getattr(exc, "code", None) in {401, 403, 429} else "unavailable"
                     else:
                         status = "unavailable"
                     providers.append(_provider_payload(name, status, message=str(exc)))
@@ -217,13 +266,14 @@ def discover_external_content(query: str, limit_per_provider: int = 3):
             if name not in completed and not any(item["name"] == name for item in providers):
                 providers.append(_provider_payload(name, "timed_out", message="Provider search exceeded the fast chat time budget."))
 
-    providers.append(
-        _provider_payload(
-            "YouTube",
-            "manual_only",
-            message="YouTube resources are manual-only embeds/uploads in this platform.",
+    if "YouTube" in selected:
+        providers.append(
+            _provider_payload(
+                "YouTube",
+                "manual_only",
+                message="YouTube resources are manual-only embeds/uploads in this platform.",
+            )
         )
-    )
 
     return {"query": query, "providers": providers, "results": merged_results}
 
@@ -298,6 +348,15 @@ def provider_health():
             "mode": "api",
             "endpoint": f"{SPRINGER_API_BASE_URL}{SPRINGER_META_ENDPOINT}",
             "status": "configured" if SPRINGER_API_KEY else "missing_key",
+        }
+    )
+    health.append(
+        {
+            "name": "Google Scholar (SerpApi)",
+            "configured": bool(SERPAPI_API_KEY),
+            "mode": "api",
+            "endpoint": f"{SERPAPI_BASE_URL}?engine=google_scholar",
+            "status": "configured" if SERPAPI_API_KEY else "missing_key",
         }
     )
     health.append(
