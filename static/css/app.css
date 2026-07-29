@@ -560,6 +560,49 @@ select {
     border-color: #e7b57a;
 }
 
+.provider-response-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+    margin-top: 20px;
+}
+
+.provider-response-card {
+    padding: 18px;
+    border-radius: 22px;
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-soft);
+}
+
+.provider-response-card--ok {
+    border-color: #9bc9aa;
+}
+
+.provider-response-card--missing_key,
+.provider-response-card--quota_exhausted,
+.provider-response-card--timed_out {
+    border-color: #e5ba78;
+}
+
+.provider-response-card--unavailable {
+    border-color: #dcaa9e;
+}
+
+.provider-response-card__top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.provider-response-card__count {
+    margin: 0;
+    font-weight: 700;
+    color: var(--accent-deep);
+}
+
 .result-pill,
 .feature-count {
     display: inline-flex;

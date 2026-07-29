@@ -35,6 +35,10 @@ def _provider_payload(name: str, status: str, results=None, message: str = ""):
     return {"name": name, "status": status, "results": results or [], "message": message}
 
 
+def _safe_dict(value):
+    return value if isinstance(value, dict) else {}
+
+
 def _normalize_springer_urls(record: dict):
     urls = record.get("url", []) or []
     if isinstance(urls, list):
@@ -54,7 +58,10 @@ def search_openalex(query: str, per_page: int = 5, timeout_seconds: float = PROV
     data = _get_json(url, timeout_seconds=timeout_seconds)
     results = []
     for item in data.get("results", []):
-        pdf_url = item.get("content", {}).get("pdf_url", "")
+        content = _safe_dict(item.get("content"))
+        primary_location = _safe_dict(item.get("primary_location"))
+        best_oa_location = _safe_dict(item.get("best_oa_location"))
+        pdf_url = content.get("pdf_url", "")
         if pdf_url or item.get("id"):
             pdf_url = pdf_url or f"{OPENALEX_CONTENT_BASE_URL}/works/{item.get('id', '').split('/')[-1]}.pdf"
         results.append(
@@ -64,13 +71,13 @@ def search_openalex(query: str, per_page: int = 5, timeout_seconds: float = PROV
                 "source_provider": "OpenAlex",
                 "source_endpoint": f"{OPENALEX_BASE_URL}/works",
                 "source_type": Material.SourceType.PAPER,
-                "original_source_url": item.get("primary_location", {}).get("landing_page_url", ""),
+                "original_source_url": primary_location.get("landing_page_url", ""),
                 "source_citation": item.get("doi", ""),
                 "source_record_id": item.get("id", ""),
                 "authors": ", ".join(author.get("author", {}).get("display_name", "") for author in item.get("authorships", [])),
-                "external_url": item.get("primary_location", {}).get("landing_page_url", ""),
+                "external_url": primary_location.get("landing_page_url", ""),
                 "pdf_url": pdf_url,
-                "license": item.get("best_oa_location", {}).get("license", ""),
+                "license": best_oa_location.get("license", ""),
                 "openalex_id": item.get("id", ""),
                 "description": item.get("abstract_inverted_index", {}) and "Abstract available via OpenAlex metadata." or "",
             }
@@ -258,6 +265,8 @@ def discover_external_content(query: str, limit_per_provider: int = 3, selected_
                     else:
                         status = "unavailable"
                     providers.append(_provider_payload(name, status, message=str(exc)))
+                except Exception as exc:
+                    providers.append(_provider_payload(name, "unavailable", message=f"{type(exc).__name__}: {exc}"))
         except TimeoutError:
             pass
 

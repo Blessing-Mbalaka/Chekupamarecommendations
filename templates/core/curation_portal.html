@@ -57,6 +57,18 @@
             </form>
         </div>
     </div>
+    <section class="provider-response-grid">
+        {% for provider in discovery_payload.providers %}
+            <article class="provider-response-card provider-response-card--{{ provider.status }}">
+                <div class="provider-response-card__top">
+                    <strong>{{ provider.name }}</strong>
+                    <span class="provider-badge provider-badge--{{ provider.status }}">{{ provider.status }}</span>
+                </div>
+                <p class="muted">{{ provider.message|default:"Provider responded without an extra message." }}</p>
+                <p class="provider-response-card__count">{{ provider.results|length }} result{{ provider.results|length|pluralize }} returned</p>
+            </article>
+        {% endfor %}
+    </section>
     {% if discovery_total %}
         {% for provider_name, results in discovery_payload.grouped_results.items %}
             <section class="provider-result-group">
@@ -115,7 +127,7 @@
     {% else %}
         <div class="empty-results">
             <h4>No results came back yet</h4>
-            <p class="muted">Try broadening the topic, choosing more providers, or using fewer words in the discovery search.</p>
+            <p class="muted">The live provider messages above show whether this was caused by missing API keys, network access, quotas, or simply no matching records.</p>
         </div>
     {% endif %}
 </section>
