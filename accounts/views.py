@@ -1,9 +1,22 @@
 from django.contrib import messages
+from django.contrib.auth.views import LoginView
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, render
 
 from .forms import StudentProfileForm, UserProfileForm
 from .services.profile import get_or_create_student_profile
+
+
+class DemoLoginView(LoginView):
+    template_name = "registration/login.html"
+
+    extra_context = {
+        "demo_accounts": [
+            {"label": "Student Demo", "username": "demo_student", "password": "Password123!"},
+            {"label": "TA Demo", "username": "demo_ta", "password": "Password123!"},
+            {"label": "Lecturer Demo", "username": "demo_lecturer", "password": "Password123!"},
+        ]
+    }
 
 
 @login_required

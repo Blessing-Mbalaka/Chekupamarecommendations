@@ -1,14 +1,14 @@
 :root {
-    --bg: #f4efe6;
-    --surface: #fffaf3;
+    --bg: #fff3e4;
+    --surface: #fff8ef;
     --surface-strong: #ffffff;
-    --ink: #1f2430;
-    --muted: #677286;
-    --line: #e5d8c2;
-    --accent: #0f766e;
-    --accent-soft: #d6f3ed;
-    --secondary: #c97a2b;
-    --shadow: 0 18px 45px rgba(50, 39, 27, 0.08);
+    --ink: #38210f;
+    --muted: #7b5d45;
+    --line: #f0c797;
+    --accent: #de6b16;
+    --accent-soft: #ffe0bf;
+    --secondary: #f29f38;
+    --shadow: 0 18px 45px rgba(103, 57, 14, 0.12);
 }
 
 * {
@@ -19,8 +19,8 @@ body {
     margin: 0;
     font-family: Georgia, "Times New Roman", serif;
     background:
-        radial-gradient(circle at top right, rgba(15, 118, 110, 0.08), transparent 22%),
-        radial-gradient(circle at bottom left, rgba(201, 122, 43, 0.12), transparent 24%),
+        radial-gradient(circle at top right, rgba(242, 159, 56, 0.22), transparent 22%),
+        radial-gradient(circle at bottom left, rgba(222, 107, 22, 0.18), transparent 24%),
         var(--bg);
     color: var(--ink);
 }
@@ -38,8 +38,8 @@ a {
 
 .sidebar {
     padding: 28px;
-    background: linear-gradient(180deg, #17353a 0%, #10242b 100%);
-    color: #f3ece0;
+    background: linear-gradient(180deg, #cf5a0f 0%, #8f3400 100%);
+    color: #fff1de;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
@@ -109,7 +109,7 @@ a {
 .panel,
 .hero-card,
 .stat-card {
-    background: rgba(255, 250, 243, 0.92);
+    background: rgba(255, 248, 239, 0.96);
     border: 1px solid var(--line);
     box-shadow: var(--shadow);
 }
@@ -123,6 +123,31 @@ a {
 .panel {
     border-radius: 28px;
     padding: 24px;
+}
+
+.demo-strip {
+    margin: 18px 0 22px;
+}
+
+.demo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+}
+
+.demo-card {
+    padding: 14px;
+    border-radius: 20px;
+    background: linear-gradient(180deg, #fff3df 0%, #ffe1ba 100%);
+    border: 1px solid #f3ba70;
+}
+
+.demo-card p {
+    margin: 8px 0 0;
+}
+
+.demo-card span {
+    color: var(--muted);
 }
 
 .muted {
@@ -347,7 +372,7 @@ select {
 }
 
 .chat-message--student {
-    background: #efe1cf;
+    background: #ffe1bf;
 }
 
 .chat-message--bot {

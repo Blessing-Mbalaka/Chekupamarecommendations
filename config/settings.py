@@ -29,7 +29,12 @@ SECRET_KEY = 'django-insecure-7j!b14@g(74gto-ri=z42e8#wz*4)a3isu^ey(l-4vyxvm%p81
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+_configured_allowed_hosts = {
+    host.strip()
+    for host in os.getenv("DJANGO_ALLOWED_HOSTS", "127.0.0.1,localhost,testserver").split(",")
+    if host.strip()
+}
+ALLOWED_HOSTS = sorted(_configured_allowed_hosts | {"127.0.0.1", "localhost", "testserver"})
 
 
 # Application definition
@@ -130,6 +135,13 @@ STATIC_URL = 'static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'recommendation-engine-cache',
+    }
+}
 
 AUTH_USER_MODEL = 'accounts.User'
 LOGIN_REDIRECT_URL = 'core:dashboard'

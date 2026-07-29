@@ -20,6 +20,8 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.urls import include, path
 
+from accounts.views import DemoLoginView
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('core.urls')),
@@ -29,7 +31,7 @@ urlpatterns = [
     path('analytics/', include('analytics_app.urls')),
     path(
         'login/',
-        auth_views.LoginView.as_view(template_name='registration/login.html'),
+        DemoLoginView.as_view(),
         name='login',
     ),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
