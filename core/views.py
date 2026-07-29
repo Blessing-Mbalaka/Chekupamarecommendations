@@ -13,6 +13,7 @@ from learning.services.discovery import (
     curated_provider_health,
     discover_curated_content,
     import_curated_results,
+    import_curated_selection,
 )
 from recommendations.models import Recommendation
 from recommendations.services.presentation import unique_recommendations
@@ -107,6 +108,22 @@ def curation_portal_view(request):
                 uploaded_by=request.user,
             )
             messages.success(request, f"Imported {len(imported)} materials from discovery results.")
+            return redirect("core:curation_portal")
+        elif action == "import_single_discovery" and discovery_payload:
+            import_key = request.POST.get("import_key", "")
+            course = Course.objects.get(pk=discovery_payload["course_id"])
+            topic = Topic.objects.filter(pk=discovery_payload.get("topic_id")).first()
+            imported = import_curated_selection(
+                discovery_payload,
+                [import_key],
+                course=course,
+                topic=topic,
+                uploaded_by=request.user,
+            )
+            if imported:
+                messages.success(request, f"Imported {imported[0].title}")
+            else:
+                messages.error(request, "That result could not be imported.")
             return redirect("core:curation_portal")
         elif action == "session_autofetch":
             if auto_fetch_ran:

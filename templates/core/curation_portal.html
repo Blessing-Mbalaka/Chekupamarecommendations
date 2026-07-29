@@ -61,27 +61,63 @@
 
 {% if discovery_payload %}
 <section class="panel">
-    <h3>Discovery results</h3>
-    <p class="muted">Results from reputable academic sources. Review first, then import into the system cleanly.</p>
-    <form method="post">
-        {% csrf_token %}
-        <input type="hidden" name="action" value="import_discovery">
-        <button type="submit" class="primary-button">Import all results</button>
-    </form>
-    <div class="card-grid">
-        {% for provider_name, results in discovery_payload.grouped_results.items %}
-            <article class="panel">
+    <div class="curation-header">
+        <div>
+            <h3>Discovery results</h3>
+            <p class="muted">Results from reputable academic sources. Review first, then import selectively or in one batch.</p>
+        </div>
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="import_discovery">
+            <button type="submit" class="primary-button">Import all results</button>
+        </form>
+    </div>
+    {% for provider_name, results in discovery_payload.grouped_results.items %}
+        <section class="provider-result-group">
+            <div class="provider-group-head">
                 <h3>{{ provider_name }}</h3>
+                <span class="provider-badge provider-badge--configured">{{ results|length }} result{{ results|length|pluralize }}</span>
+            </div>
+            <div class="result-card-grid">
                 {% for result in results %}
-                    <div class="list-link list-link--static">
-                        <span>{{ result.title }}</span>
-                        <span>{{ result.year|default:"Unknown" }}</span>
-                    </div>
+                    <article class="result-card">
+                        <div class="result-card__top">
+                            <span class="result-source">{{ provider_name }}</span>
+                            <span class="result-year">{{ result.year|default:"Unknown year" }}</span>
+                        </div>
+                        <h4>{{ result.title }}</h4>
+                        <p class="muted">{{ result.description|default:"No summary was supplied by this source."|truncatechars:220 }}</p>
+                        <div class="result-meta">
+                            {% if result.has_pdf %}
+                                <span class="result-badge">PDF</span>
+                            {% endif %}
+                            {% if result.license %}
+                                <span class="result-badge">{{ result.license }}</span>
+                            {% endif %}
+                            {% if result.authors %}
+                                <span class="result-badge">{{ result.authors|truncatechars:44 }}</span>
+                            {% endif %}
+                        </div>
+                        <div class="button-stack">
+                            {% if result.external_url %}
+                                <a href="{{ result.external_url }}" target="_blank" rel="noreferrer" class="ghost-button">Open source</a>
+                            {% endif %}
+                            {% if result.pdf_url %}
+                                <a href="{{ result.pdf_url }}" target="_blank" rel="noreferrer" class="ghost-button">View PDF</a>
+                            {% endif %}
+                            <form method="post">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="import_single_discovery">
+                                <input type="hidden" name="import_key" value="{{ result.import_key }}">
+                                <button type="submit" class="secondary-button">Import this</button>
+                            </form>
+                        </div>
+                    </article>
                 {% empty %}
                     <p class="muted">No results from this provider.</p>
                 {% endfor %}
-            </article>
-        {% endfor %}
-    </div>
+            </div>
+        </section>
+    {% endfor %}
 {% endif %}
 {% endblock %}
