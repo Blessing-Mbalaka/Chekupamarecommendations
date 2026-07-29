@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="panel">
+    <p class="eyebrow">Baseline Assessment</p>
+    <h2>{{ assessment.title }}</h2>
+    <p class="muted">{{ assessment.description|default:"This assessment helps the chatbot and recommendation engine personalize guidance." }}</p>
+    <form method="post" class="form-panel">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit" class="primary-button">Submit assessment</button>
+    </form>
+</section>
+{% endblock %}

@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="panel">
+    <p class="eyebrow">Profile</p>
+    <h2>Personalize your learning support</h2>
+    <p class="muted">Use the challenges field for anything the chatbot should know about how you learn best.</p>
+    <form method="post" class="form-grid">
+        {% csrf_token %}
+        <div class="form-section">
+            <h3>Identity and contact</h3>
+            {{ user_form.as_p }}
+        </div>
+        <div class="form-section">
+            <h3>Learning context</h3>
+            {{ profile_form.as_p }}
+        </div>
+        <button type="submit" class="primary-button">Save profile</button>
+    </form>
+</section>
+{% endblock %}

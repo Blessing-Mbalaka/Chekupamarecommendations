@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="panel">
+    <p class="eyebrow">Chatbot</p>
+    <h2>Ask for personalized guidance</h2>
+    <p class="muted">The assistant blends your profile, baseline performance, and stored material when suggesting what to study next.</p>
+</section>
+
+<section class="chat-layout">
+    <div class="panel chat-thread">
+        {% for message in messages %}
+            <article class="chat-message chat-message--{{ message.sender }}">
+                <span>{{ message.get_sender_display }}</span>
+                <p>{{ message.content }}</p>
+            </article>
+        {% empty %}
+            <p class="muted">Start the conversation with a question like "What should I revise first for calculus?"</p>
+        {% endfor %}
+    </div>
+    <div class="panel">
+        <form method="post" class="form-panel">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <button type="submit" class="primary-button">Send</button>
+        </form>
+        <div class="recommendation-bubble-wrap">
+            <h3>Recommended now</h3>
+            {% for recommendation in recommendations %}
+                <article class="recommendation-bubble">
+                    <div>
+                        <strong>{{ recommendation.material.title }}</strong>
+                        <p>
+                            {{ recommendation.material.get_source_origin_display }} |
+                            {{ recommendation.material.get_source_type_display }}
+                            {% if recommendation.material.source_provider %}
+                                | {{ recommendation.material.source_provider }}
+                            {% endif %}
+                        </p>
+                    </div>
+                    <div class="button-stack">
+                        <a class="secondary-button" href="{{ recommendation.material.get_absolute_url }}">View</a>
+                        {% if recommendation.material.file %}
+                            <a class="ghost-button" href="{{ recommendation.material.file.url }}">Team copy</a>
+                        {% endif %}
+                    </div>
+                </article>
+            {% empty %}
+                <p class="muted">Your recommendation bubble will appear here after the chatbot replies.</p>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+{% endblock %}

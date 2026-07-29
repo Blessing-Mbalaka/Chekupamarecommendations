@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero-card">
+    <p class="eyebrow">Student Support Platform</p>
+    <h2>Sign in to continue learning</h2>
+    <p class="muted">Personalized recommendations, baseline assessments, and chatbot guidance all live here.</p>
+    <form method="post" class="panel form-panel">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit" class="primary-button">Login</button>
+    </form>
+</section>
+{% endblock %}

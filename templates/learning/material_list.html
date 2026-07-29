@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="panel">
+    <p class="eyebrow">Materials</p>
+    <h2>Learning resources</h2>
+    <p class="muted">Validated uploads, websites, papers, and videos live here.</p>
+</section>
+
+<section class="two-column">
+    <div class="panel">
+        <h3>Recommended now</h3>
+        {% for material in recommendations %}
+            <a class="list-link" href="{{ material.get_absolute_url }}">
+                {{ material.title }} <span>{{ material.course.code }}</span>
+            </a>
+        {% empty %}
+            <p class="muted">Recommendations will appear here as soon as enough profile or baseline data exists.</p>
+        {% endfor %}
+    </div>
+    <div class="panel">
+        <h3>All validated materials</h3>
+        {% for material in materials %}
+            <a class="list-link" href="{{ material.get_absolute_url }}">
+                {{ material.title }} <span>{{ material.get_source_type_display }}</span>
+            </a>
+        {% empty %}
+            <p class="muted">No materials are available yet.</p>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}

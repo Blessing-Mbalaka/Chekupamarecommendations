@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block content %}
+<article class="panel">
+    <p class="eyebrow">{{ material.course.code }}</p>
+    <h2>{{ material.title }}</h2>
+    <p class="muted">{{ material.description|default:"No description supplied yet." }}</p>
+    <div class="meta-grid">
+        <div><strong>Origin</strong><span>{{ material.get_source_origin_display }}</span></div>
+        <div><strong>Topic</strong><span>{% if material.topic %}{{ material.topic.title }}{% else %}General{% endif %}</span></div>
+        <div><strong>Year</strong><span>{{ material.publication_year|default:"Unknown" }}</span></div>
+        <div><strong>Type</strong><span>{{ material.get_source_type_display }}</span></div>
+        <div><strong>Tags</strong><span>{{ material.tags|default:"None" }}</span></div>
+        <div><strong>Provider</strong><span>{{ material.source_provider|default:"Not set" }}</span></div>
+    </div>
+    {% if material.source_citation %}
+        <p><strong>Source citation:</strong> {{ material.source_citation }}</p>
+    {% endif %}
+    <div class="button-row">
+        {% if material.file %}
+            <a class="primary-button" href="{{ material.file.url }}">Open stored copy</a>
+        {% endif %}
+        {% if material.effective_source_url %}
+            <a class="secondary-button" href="{{ material.effective_source_url }}" target="_blank" rel="noreferrer">Open original source</a>
+        {% endif %}
+        <a class="ghost-button" href="{% url 'chatbot:chat' %}">Ask chatbot about this</a>
+    </div>
+    {% if material.source_type == "video" and material.embed_url %}
+        <div class="embed-shell">
+            <h3>Embedded video</h3>
+            <iframe
+                src="{{ material.embed_url }}"
+                title="{{ material.youtube_title|default:material.title }}"
+                loading="lazy"
+                allowfullscreen>
+            </iframe>
+        </div>
+    {% endif %}
+</article>
+{% endblock %}

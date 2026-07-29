@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="dashboard-header">
+    <div>
+        <p class="eyebrow">Overview</p>
+        <h2>Your learning hub</h2>
+        <p class="muted">Track performance, continue conversations, and open recommended material quickly.</p>
+    </div>
+    <div class="stats-grid">
+        <article class="stat-card">
+            <span>Latest baseline</span>
+            <strong>{% if latest_attempt %}{{ latest_attempt.score }}%{% else %}Pending{% endif %}</strong>
+        </article>
+        <article class="stat-card">
+            <span>Analytics events</span>
+            <strong>{{ analytics_count }}</strong>
+        </article>
+        <article class="stat-card">
+            <span>Chat ready</span>
+            <strong>{% if chat_session %}Active{% else %}New{% endif %}</strong>
+        </article>
+    </div>
+</section>
+
+<section class="card-grid">
+    <article class="panel">
+        <h3>Recommended for you</h3>
+        {% if recommendations %}
+            {% for recommendation in recommendations %}
+                <a class="list-link" href="{{ recommendation.material.get_absolute_url }}">
+                    {{ recommendation.material.title }}
+                </a>
+            {% endfor %}
+        {% else %}
+            <p class="muted">Start a chat or complete a baseline assessment to generate personalized recommendations.</p>
+        {% endif %}
+    </article>
+
+    <article class="panel">
+        <h3>Available materials</h3>
+        {% for material in materials %}
+            <a class="list-link" href="{{ material.get_absolute_url }}">
+                {{ material.title }} <span>{{ material.course.code }}</span>
+            </a>
+        {% empty %}
+            <p class="muted">Validated materials will appear here after lecturer upload and review.</p>
+        {% endfor %}
+    </article>
+
+    <article class="panel">
+        <h3>Baseline assessments</h3>
+        {% for assessment in assessments %}
+            <a class="list-link" href="{% url 'learning:assessment_detail' assessment.pk %}">
+                {{ assessment.title }} <span>{{ assessment.course.code }}</span>
+            </a>
+        {% empty %}
+            <p class="muted">No baseline assessments are active yet.</p>
+        {% endfor %}
+    </article>
+
+    <article class="panel">
+        <h3>Courses</h3>
+        {% for course in courses %}
+            <div class="list-link list-link--static">
+                {{ course.title }} <span>{{ course.code }}</span>
+            </div>
+        {% empty %}
+            <p class="muted">Courses will appear once they are configured by lecturers.</p>
+        {% endfor %}
+    </article>
+    <article class="panel">
+        <h3>Next action</h3>
+        <p class="muted">A strong first setup is to complete your profile challenges and then ask the chatbot what to study first.</p>
+        <div class="button-row">
+            <a href="{% url 'accounts:profile' %}" class="primary-button">Update Profile</a>
+            <a href="{% url 'chatbot:chat' %}" class="secondary-button">Open Chatbot</a>
+        </div>
+    </article>
+</section>
+{% endblock %}

@@ -185,25 +185,25 @@ The platform should support students, lecturers/admins, and teaching assistants,
 
 ## Implementation Checklist
 
-- [ ] Initialize repository
+- [x] Initialize repository
 - [x] Create `masterplan.md`
-- [ ] Scaffold Django project
-- [ ] Configure base settings and templates
-- [ ] Add custom user model and roles
-- [ ] Add student profile and challenges support
-- [ ] Add courses, topics, and materials
-- [ ] Add baseline assessment models
-- [ ] Add lecturer-authored chatbot questions
-- [ ] Add file and link ingestion flows
-- [ ] Add external academic discovery service abstraction
-- [ ] Add chatbot sessions and messages
-- [ ] Add recommendation engine service
-- [ ] Add analytics event tracking
-- [ ] Add role-based dashboards and sidebar UI
-- [ ] Add automated tests
-- [ ] Run verification
+- [x] Scaffold Django project
+- [x] Configure base settings and templates
+- [x] Add custom user model and roles
+- [x] Add student profile and challenges support
+- [x] Add courses, topics, and materials
+- [x] Add baseline assessment models
+- [x] Add lecturer-authored chatbot questions
+- [x] Add file and link ingestion flows
+- [x] Add external academic discovery service abstraction
+- [x] Add chatbot sessions and messages
+- [x] Add recommendation engine service
+- [x] Add analytics event tracking
+- [x] Add role-based dashboards and sidebar UI
+- [x] Add automated tests
+- [x] Run verification
 - [ ] Commit each implementation stage
 
 ## Immediate Next Step
 
-Scaffold the Django project and establish the modular app structure so feature work can proceed in isolated, testable slices.
+Complete remaining stage commits and optionally add Playwright end-to-end browser tests plus richer external resource ingestion workflows.
