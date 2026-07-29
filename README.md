@@ -24,15 +24,28 @@ An API-first Django learning support platform with:
 
 ## Gemini Setup
 
-Set these environment variables before running the app if you want Gemini-backed responses and embeddings:
+Copy `.env.example` to `.env` and fill in the values you want to use.
 
 ```powershell
-$env:GEMINI_API_KEY="your-key"
-$env:GEMINI_TEXT_MODEL="gemini-3.6-flash"
-$env:GEMINI_EMBED_MODEL="gemini-embedding-2"
+Copy-Item .env.example .env
+```
+
+The app now auto-loads `.env` on startup. These are the main values:
+
+```powershell
+GEMINI_API_KEY=your-key
+GEMINI_TEXT_MODEL=gemini-3.6-flash
+GEMINI_EMBED_MODEL=gemini-embedding-2
 ```
 
 If `GEMINI_API_KEY` is missing, the chatbot still works using the local recommendation fallback.
+
+## Other API Notes
+
+- OpenAlex: free and a strong default choice for academic discovery. An email is helpful for polite identification.
+- Crossref: free and useful for DOI and paper metadata lookup.
+- Semantic Scholar: useful for paper discovery; an API key is optional for low-volume usage but worth supporting.
+- Scopus: usually commercial or institution-gated, so I have left it as a future connector rather than a default path.
 
 ## Run Locally
 
