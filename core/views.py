@@ -149,6 +149,7 @@ def curation_portal_view(request):
                     messages.success(request, f"Auto-fetch imported {len(imported)} materials for this session.")
 
     recent_materials = Material.objects.select_related("course", "topic").order_by("-created_at")[:10]
+    discovery_total = len(discovery_payload.get("results", [])) if discovery_payload else 0
     curated_stats = {
         "validated_materials": Material.objects.filter(is_validated=True).count(),
         "external_materials": Material.objects.filter(source_origin=Material.SourceOrigin.EXTERNAL).count(),
@@ -171,5 +172,6 @@ def curation_portal_view(request):
             "provider_health": curated_provider_health(),
             "auto_fetch_ran": auto_fetch_ran,
             "curated_stats": curated_stats,
+            "discovery_total": discovery_total,
         },
     )

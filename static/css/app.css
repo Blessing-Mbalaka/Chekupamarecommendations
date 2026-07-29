@@ -220,8 +220,10 @@ a {
 }
 
 .message {
-    padding: 12px 16px;
-    border-radius: 14px;
+    padding: 16px 18px;
+    border-radius: 18px;
+    border-left: 5px solid var(--accent);
+    font-weight: 600;
 }
 
 .hero-card,
@@ -298,6 +300,7 @@ a {
 .dashboard-header,
 .chat-layout,
 .card-grid,
+.feature-tile-grid,
 .two-column,
 .stats-grid,
 .meta-grid,
@@ -314,6 +317,11 @@ a {
 
 .card-grid {
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    margin-top: 24px;
+}
+
+.feature-tile-grid {
+    grid-template-columns: 1fr;
     margin-top: 24px;
 }
 
@@ -546,6 +554,26 @@ select {
     margin-bottom: 14px;
 }
 
+.panel--results {
+    margin-top: 24px;
+    background: linear-gradient(180deg, #fff9f2 0%, #fff0de 100%);
+    border-color: #e7b57a;
+}
+
+.result-pill,
+.feature-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 42px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: #fff1da;
+    border: 1px solid #edc18e;
+    color: #8b4a10;
+    font-weight: 700;
+}
+
 .result-card-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -638,6 +666,76 @@ select {
     color: #85562e;
 }
 
+.empty-results {
+    margin-top: 18px;
+    padding: 20px;
+    border-radius: 22px;
+    background: rgba(255, 255, 255, 0.62);
+    border: 1px dashed #e0b378;
+}
+
+.feature-tile {
+    border-radius: 28px;
+    border: 1px solid var(--line);
+    background: rgba(255, 249, 241, 0.96);
+    box-shadow: var(--shadow-soft);
+    overflow: hidden;
+}
+
+.feature-tile[open] {
+    background: linear-gradient(180deg, rgba(255, 251, 247, 0.98) 0%, rgba(255, 244, 232, 0.98) 100%);
+}
+
+.feature-tile summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 22px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 18px;
+}
+
+.feature-tile summary::-webkit-details-marker {
+    display: none;
+}
+
+.feature-tile summary h3,
+.feature-tile summary p {
+    margin: 0;
+}
+
+.feature-tile > .muted,
+.feature-tile > .form-panel,
+.feature-tile > .health-row,
+.feature-tile > .list-link,
+.feature-tile > .discovery-callout {
+    margin-left: 24px;
+    margin-right: 24px;
+}
+
+.feature-tile > .muted {
+    margin-top: 0;
+    margin-bottom: 16px;
+}
+
+.feature-tile .form-panel {
+    padding-bottom: 24px;
+}
+
+.discovery-callout {
+    margin-bottom: 18px;
+    padding: 16px 18px;
+    border-radius: 18px;
+    background: #fff3df;
+    border: 1px solid #efc792;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
 .embed-shell {
     margin-top: 24px;
     padding-top: 12px;
@@ -712,6 +810,14 @@ select {
 
     .button-row {
         grid-auto-flow: row;
+    }
+
+    .curation-header,
+    .provider-group-head,
+    .feature-tile summary,
+    .discovery-callout {
+        align-items: start;
+        flex-direction: column;
     }
 
     .hero-card--login {
