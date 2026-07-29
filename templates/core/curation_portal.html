@@ -61,8 +61,39 @@
         {% for provider in discovery_payload.providers %}
             <article class="provider-response-card provider-response-card--{{ provider.status }}">
                 <div class="provider-response-card__top">
-                    <strong>{{ provider.name }}</strong>
-                    <span class="provider-badge provider-badge--{{ provider.status }}">{{ provider.status }}</span>
+                    <div>
+                        <strong>{{ provider.name }}</strong>
+                        <p class="provider-response-card__label">
+                            {% if provider.status == "missing_key" %}
+                                Optional key not configured
+                            {% elif provider.status == "quota_exhausted" %}
+                                Provider quota reached
+                            {% elif provider.status == "manual_only" %}
+                                Manual source
+                            {% elif provider.status == "timed_out" %}
+                                Slow response
+                            {% elif provider.status == "unavailable" %}
+                                Connection issue
+                            {% else %}
+                                Live response
+                            {% endif %}
+                        </p>
+                    </div>
+                    <span class="provider-badge provider-badge--{{ provider.status }}">
+                        {% if provider.status == "missing_key" %}
+                            info
+                        {% elif provider.status == "quota_exhausted" %}
+                            limited
+                        {% elif provider.status == "manual_only" %}
+                            manual
+                        {% elif provider.status == "timed_out" %}
+                            delayed
+                        {% elif provider.status == "unavailable" %}
+                            issue
+                        {% else %}
+                            ready
+                        {% endif %}
+                    </span>
                 </div>
                 <p class="muted">{{ provider.message|default:"Provider responded without an extra message." }}</p>
                 <p class="provider-response-card__count">{{ provider.results|length }} result{{ provider.results|length|pluralize }} returned</p>
@@ -106,7 +137,7 @@
                                     <a href="{{ result.external_url }}" target="_blank" rel="noreferrer" class="ghost-button">Open source</a>
                                 {% endif %}
                                 {% if result.pdf_url %}
-                                    <a href="{{ result.pdf_url }}" target="_blank" rel="noreferrer" class="ghost-button">View PDF</a>
+                                    <a href="{{ result.pdf_url }}{% if result.external_url %}?fallback={{ result.external_url|urlencode }}{% endif %}" target="_blank" rel="noreferrer" class="ghost-button">View PDF</a>
                                 {% else %}
                                     <p class="result-note">PDF not available here. Please go download it from the source page if needed.</p>
                                 {% endif %}
