@@ -24,6 +24,23 @@
             {{ form.as_p }}
             <button type="submit" class="primary-button">Send</button>
         </form>
+        {% if latest_bot_message and latest_bot_message.metadata %}
+            <div class="provider-panel">
+                <h3>Search orchestration</h3>
+                <p><strong>Refined query:</strong> {{ latest_bot_message.metadata.refined_query }}</p>
+                <p><strong>LLM backend:</strong> {{ latest_bot_message.metadata.response_backend }}</p>
+                <div class="provider-badges">
+                    {% for provider in latest_bot_message.metadata.provider_statuses %}
+                        <span class="provider-badge provider-badge--{{ provider.status }}">
+                            {{ provider.name }}: {{ provider.status }}
+                        </span>
+                    {% endfor %}
+                </div>
+                {% if latest_bot_message.metadata.ollama_status.ollama_models %}
+                    <p><strong>Ollama fallbacks:</strong> {{ latest_bot_message.metadata.ollama_status.ollama_models|join:", " }}</p>
+                {% endif %}
+            </div>
+        {% endif %}
         <div class="recommendation-bubble-wrap">
             <h3>Recommended now</h3>
             {% for recommendation in recommendations %}
@@ -42,6 +59,9 @@
                         <a class="secondary-button" href="{{ recommendation.material.get_absolute_url }}">View</a>
                         {% if recommendation.material.file %}
                             <a class="ghost-button" href="{{ recommendation.material.file.url }}">Team copy</a>
+                        {% endif %}
+                        {% if recommendation.material.external_url %}
+                            <a class="ghost-button" href="{{ recommendation.material.external_url }}" target="_blank" rel="noreferrer">Original source</a>
                         {% endif %}
                     </div>
                 </article>

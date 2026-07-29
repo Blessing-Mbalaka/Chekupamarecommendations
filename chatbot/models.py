@@ -27,6 +27,7 @@ class ChatMessage(models.Model):
     session = models.ForeignKey(ChatSession, on_delete=models.CASCADE, related_name="messages")
     sender = models.CharField(max_length=20, choices=Sender.choices)
     content = models.TextField()
+    metadata = models.JSONField(default=dict, blank=True)
     related_prompt = models.ForeignKey(
         LecturerPrompt,
         on_delete=models.SET_NULL,
@@ -41,5 +42,3 @@ class ChatMessage(models.Model):
 
     def __str__(self) -> str:
         return f"{self.sender}: {self.content[:40]}"
-
-# Create your models here.

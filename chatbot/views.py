@@ -18,10 +18,12 @@ def chat_view(request):
                 sender=ChatMessage.Sender.STUDENT,
                 content=form.cleaned_data["message"],
             )
+            bot_payload = generate_bot_response(message)
             ChatMessage.objects.create(
                 session=session,
                 sender=ChatMessage.Sender.BOT,
-                content=generate_bot_response(message),
+                content=bot_payload["text"],
+                metadata=bot_payload["metadata"],
             )
             form = ChatMessageForm()
     else:
@@ -37,6 +39,7 @@ def chat_view(request):
             "recommendations": Recommendation.objects.select_related("material")
             .filter(student=request.user)
             .order_by("-created_at")[:4],
+            "latest_bot_message": session.messages.filter(sender=ChatMessage.Sender.BOT).order_by("-created_at").first(),
         },
     )
 

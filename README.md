@@ -36,15 +36,20 @@ The app now auto-loads `.env` on startup. These are the main values:
 GEMINI_API_KEY=your-key
 GEMINI_TEXT_MODEL=gemini-3.6-flash
 GEMINI_EMBED_MODEL=gemini-embedding-2
+OLLAMA_BASE_URL=http://localhost:11434/api
+OLLAMA_TEXT_MODEL=ministral-3:3b
+OLLAMA_EMBED_MODEL=nomic-embed-text:latest
 ```
 
 If `GEMINI_API_KEY` is missing, the chatbot still works using the local recommendation fallback.
+If Ollama is running locally, the chatbot can also fall back to your local models for refinement, response generation, and embeddings.
 
 ## Other API Notes
 
-- OpenAlex: free and a strong default choice for academic discovery. An email is helpful for polite identification.
+- OpenAlex: free and a strong default choice for academic discovery. Current docs indicate API keys are now required for API usage, and an email is still useful for identification.
 - Crossref: free and useful for DOI and paper metadata lookup.
 - Semantic Scholar: useful for paper discovery; an API key is optional for low-volume usage but worth supporting.
+- YouTube: no key is needed for a plain embedded video if you already have the video URL, but a key is needed for YouTube Data API search and metadata retrieval.
 - Scopus: usually commercial or institution-gated, so I have left it as a future connector rather than a default path.
 
 ## Run Locally

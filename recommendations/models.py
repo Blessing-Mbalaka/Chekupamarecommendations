@@ -19,4 +19,21 @@ class Recommendation(models.Model):
     def __str__(self) -> str:
         return f"{self.student} -> {self.material}"
 
+
+class MaterialEmbeddingCluster(models.Model):
+    material = models.OneToOneField(Material, on_delete=models.CASCADE, related_name="embedding_cluster")
+    cluster_label = models.CharField(max_length=120, blank=True)
+    embedding_backend = models.CharField(max_length=120, blank=True)
+    x = models.FloatField(default=0)
+    y = models.FloatField(default=0)
+    z = models.FloatField(default=0)
+    keywords = models.CharField(max_length=255, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["cluster_label", "material__title"]
+
+    def __str__(self) -> str:
+        return f"{self.material.title} [{self.cluster_label}]"
+
 # Create your models here.

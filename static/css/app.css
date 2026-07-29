@@ -247,6 +247,39 @@ select {
     gap: 14px;
 }
 
+.provider-panel {
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+}
+
+.provider-badges {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin: 12px 0;
+}
+
+.provider-badge {
+    padding: 8px 12px;
+    border-radius: 999px;
+    font-size: 0.82rem;
+    border: 1px solid var(--line);
+}
+
+.provider-badge--ok {
+    background: #dff4eb;
+}
+
+.provider-badge--missing_key,
+.provider-badge--quota_exhausted {
+    background: #fff0d7;
+}
+
+.provider-badge--unavailable {
+    background: #f6dcdc;
+}
+
 .recommendation-bubble {
     padding: 16px;
     border-radius: 22px;
