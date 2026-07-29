@@ -4,7 +4,8 @@ from django.test import TestCase
 from django.urls import reverse
 
 from accounts.models import StudentProfile, User
-from learning.models import Course, Material
+from chatbot.models import ChatMessage, ChatSession
+from learning.models import AssessmentQuestion, BaselineAssessment, Course, Material
 
 
 class ChatbotFlowTests(TestCase):
@@ -25,6 +26,18 @@ class ChatbotFlowTests(TestCase):
             source_provider="YouTube",
             external_url="https://www.youtube.com/watch?v=dQw4w9WgXcQ",
             is_validated=True,
+        )
+        assessment = BaselineAssessment.objects.create(course=self.course, title="Intro baseline")
+        AssessmentQuestion.objects.create(
+            assessment=assessment,
+            prompt="What is the best easy way to understand Newtonian mechanics?",
+            question_type="text",
+        )
+        prior_session = ChatSession.objects.create(student=self.student, course=self.course)
+        ChatMessage.objects.create(
+            session=prior_session,
+            sender=ChatMessage.Sender.STUDENT,
+            content="Can you suggest an easy mechanics explanation?",
         )
 
     @patch("chatbot.services.chat_engine.discover_external_content")
@@ -51,5 +64,7 @@ class ChatbotFlowTests(TestCase):
         self.assertContains(response, "Start with the mechanics video first.")
         self.assertContains(response, "easy physics video")
         self.assertContains(response, "OpenAlex: ok")
+        self.assertContains(response, "Close existing questions")
+        self.assertContains(response, "What is the best easy way to understand Newtonian mechanics?")
 
 # Create your tests here.

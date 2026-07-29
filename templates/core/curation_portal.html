@@ -11,9 +11,40 @@
     </div>
 </section>
 
+<section class="curation-stats">
+    <article class="stat-card stat-card--highlight">
+        <span class="eyebrow">Validated</span>
+        <strong>{{ curated_stats.validated_materials }}</strong>
+        <p class="muted">Materials ready for student recommendations.</p>
+    </article>
+    <article class="stat-card">
+        <span class="eyebrow">External</span>
+        <strong>{{ curated_stats.external_materials }}</strong>
+        <p class="muted">API-fetched or embedded resources stored with source provenance.</p>
+    </article>
+    <article class="stat-card">
+        <span class="eyebrow">Internal</span>
+        <strong>{{ curated_stats.internal_materials }}</strong>
+        <p class="muted">Team-managed uploads available as internal learning material.</p>
+    </article>
+    <article class="stat-card">
+        <span class="eyebrow">Student Questions</span>
+        <strong>{{ curated_stats.questions_asked }}</strong>
+        <p class="muted">Used to spot close semantic matches before creating new guidance.</p>
+    </article>
+    {% if discovery_payload %}
+        <article class="stat-card">
+            <span class="eyebrow">Discovery Results</span>
+            <strong>{{ curated_stats.discovery_results }}</strong>
+            <p class="muted">{{ curated_stats.pdf_ready }} PDF-ready, {{ curated_stats.pdf_missing }} source-page only.</p>
+        </article>
+    {% endif %}
+</section>
+
 <section class="card-grid">
     <article class="panel">
-        <h3>Manual upload</h3>
+        <h3>Upload</h3>
+        <p class="muted">Add internal documents, notes, or files that should remain in the team-owned library.</p>
         <form method="post" enctype="multipart/form-data" class="form-panel">
             {% csrf_token %}
             <input type="hidden" name="action" value="upload_material">
@@ -23,7 +54,8 @@
     </article>
 
     <article class="panel">
-        <h3>API discovery</h3>
+        <h3>Discovery</h3>
+        <p class="muted">Search trusted external sources, compare what has a direct PDF, and import only the strongest items.</p>
         <form method="post" class="form-panel">
             {% csrf_token %}
             <input type="hidden" name="action" value="search_discovery">
@@ -80,9 +112,14 @@
             </div>
             <div class="result-card-grid">
                 {% for result in results %}
-                    <article class="result-card">
+                    <article class="result-card {% if forloop.first %}result-card--top-pick{% endif %}">
                         <div class="result-card__top">
-                            <span class="result-source">{{ provider_name }}</span>
+                            <div class="button-stack">
+                                <span class="result-source">{{ provider_name }}</span>
+                                {% if forloop.first %}
+                                    <span class="result-top-pick">Top selection</span>
+                                {% endif %}
+                            </div>
                             <span class="result-year">{{ result.year|default:"Unknown year" }}</span>
                         </div>
                         <h4>{{ result.title }}</h4>
@@ -104,6 +141,8 @@
                             {% endif %}
                             {% if result.pdf_url %}
                                 <a href="{{ result.pdf_url }}" target="_blank" rel="noreferrer" class="ghost-button">View PDF</a>
+                            {% else %}
+                                <p class="result-note">PDF not available here. Please go download it from the source page if needed.</p>
                             {% endif %}
                             <form method="post">
                                 {% csrf_token %}

@@ -2,6 +2,8 @@ from django.test import TestCase
 from django.urls import reverse
 
 from accounts.models import User
+from chatbot.models import ChatMessage, ChatSession
+from learning.models import Course, Material
 
 
 class DashboardTests(TestCase):
@@ -42,3 +44,24 @@ class DashboardTests(TestCase):
         response = self.client.get(reverse("core:health"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "API and chatbot health")
+
+    def test_curation_portal_shows_stats_for_superuser(self):
+        superuser = User.objects.create_superuser(
+            username="portal_admin",
+            password="password123",
+            email="portal@example.com",
+        )
+        course = Course.objects.create(code="SYS101", title="Systems Thinking")
+        Material.objects.create(course=course, title="Internal guide", is_validated=True)
+        session = ChatSession.objects.create(student=superuser, course=course)
+        ChatMessage.objects.create(
+            session=session,
+            sender=ChatMessage.Sender.STUDENT,
+            content="How do feedback loops work?",
+        )
+        self.client.login(username="portal_admin", password="password123")
+        response = self.client.get(reverse("core:curation_portal"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Student Questions")
+        self.assertContains(response, "Upload")
+        self.assertContains(response, "Discovery")

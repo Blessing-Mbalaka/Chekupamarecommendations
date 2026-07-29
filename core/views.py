@@ -4,7 +4,7 @@ from django.shortcuts import redirect, render
 from django.contrib import messages
 
 from analytics_app.models import AnalyticsEvent
-from chatbot.models import ChatSession
+from chatbot.models import ChatMessage, ChatSession
 from core.services.health import chatbot_health_snapshot
 from learning.models import AssessmentAttempt, BaselineAssessment, Course, Material, Topic
 from learning.forms_curation import DiscoverySearchForm, MaterialUploadForm
@@ -149,6 +149,17 @@ def curation_portal_view(request):
                     messages.success(request, f"Auto-fetch imported {len(imported)} materials for this session.")
 
     recent_materials = Material.objects.select_related("course", "topic").order_by("-created_at")[:10]
+    curated_stats = {
+        "validated_materials": Material.objects.filter(is_validated=True).count(),
+        "external_materials": Material.objects.filter(source_origin=Material.SourceOrigin.EXTERNAL).count(),
+        "internal_materials": Material.objects.filter(source_origin=Material.SourceOrigin.INTERNAL).count(),
+        "questions_asked": ChatMessage.objects.filter(sender=ChatMessage.Sender.STUDENT).count(),
+    }
+    if discovery_payload:
+        results = discovery_payload.get("results", [])
+        curated_stats["discovery_results"] = len(results)
+        curated_stats["pdf_ready"] = sum(1 for item in results if item.get("pdf_url"))
+        curated_stats["pdf_missing"] = sum(1 for item in results if not item.get("pdf_url"))
     return render(
         request,
         "core/curation_portal.html",
@@ -159,5 +170,6 @@ def curation_portal_view(request):
             "recent_materials": recent_materials,
             "provider_health": curated_provider_health(),
             "auto_fetch_ran": auto_fetch_ran,
+            "curated_stats": curated_stats,
         },
     )

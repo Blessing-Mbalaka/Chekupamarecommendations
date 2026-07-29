@@ -41,6 +41,14 @@
                 {% elif latest_bot_message.metadata.ollama_status.ollama %}
                     <p><strong>Ollama fallbacks:</strong> available</p>
                 {% endif %}
+                {% if latest_bot_message.metadata.similar_questions %}
+                    <div class="similar-questions-block">
+                        <h4>Close existing questions</h4>
+                        {% for item in latest_bot_message.metadata.similar_questions %}
+                            <p><strong>{{ item.kind|title }}</strong>: {{ item.text }} <span class="muted">match {{ item.score }}</span></p>
+                        {% endfor %}
+                    </div>
+                {% endif %}
             </div>
         {% endif %}
         <div class="recommendation-bubble-wrap">

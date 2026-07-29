@@ -4,6 +4,7 @@ from recommendations.services.engine import recommend_for_student, store_recomme
 from recommendations.services.llm import backend_status, generate_chat_text, refine_search_query
 
 from chatbot.models import ChatMessage
+from chatbot.services.similarity import find_similar_existing_questions
 
 
 def generate_bot_response(message: ChatMessage):
@@ -31,6 +32,7 @@ def generate_bot_response(message: ChatMessage):
         use_semantic=False,
         generate_missing_embeddings=False,
     )
+    similar_questions = find_similar_existing_questions(message.content, course=session.course, limit=3)
     store_recommendations(student, recommendations, related_message=message)
 
     challenge_line = (
@@ -43,6 +45,12 @@ def generate_bot_response(message: ChatMessage):
         if lecturer_prompt
         else "No lecturer prompt is active yet, so I am leaning on your baseline and current question."
     )
+    if similar_questions:
+        similar_line = "Related existing questions already in the system: " + "; ".join(
+            item["text"][:120] for item in similar_questions
+        ) + "."
+    else:
+        similar_line = "No close existing question match was found in the current course records."
 
     if recommendations:
         recommendation_lines = []
@@ -60,6 +68,7 @@ def generate_bot_response(message: ChatMessage):
             f"Refined search string: {refined_query}.",
             challenge_line,
             prompt_line,
+            similar_line,
             recommendation_line,
             "If you want, ask me for a quiz, a simpler explanation, or the best item to download first.",
         ]
@@ -75,6 +84,7 @@ def generate_bot_response(message: ChatMessage):
         f"Refined academic search string: {refined_query}",
         f"Student challenge context: {challenge_line}",
         f"Lecturer context: {prompt_line}",
+        f"Similar existing questions: {similar_line}",
         f"Recommendation context: {recommendation_line}",
         f"External provider statuses: {discovery_payload['providers']}",
         "Respond with practical guidance and mention what material to open first.",
@@ -88,5 +98,6 @@ def generate_bot_response(message: ChatMessage):
             "response_backend": response_backend,
             "provider_statuses": discovery_payload["providers"],
             "ollama_status": backend_status(include_models=False),
+            "similar_questions": similar_questions,
         },
     }
