@@ -291,7 +291,8 @@ select {
 
 .provider-badge--missing_key,
 .provider-badge--quota_exhausted,
-.provider-badge--manual_only {
+.provider-badge--manual_only,
+.provider-badge--timed_out {
     background: #fff0d7;
 }
 

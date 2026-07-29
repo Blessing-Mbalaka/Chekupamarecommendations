@@ -1,5 +1,6 @@
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib import parse, request
 from urllib.error import HTTPError, URLError
 
@@ -18,11 +19,13 @@ SPRINGER_META_ENDPOINT = os.getenv("SPRINGER_META_ENDPOINT", "/meta/v2/json")
 SPRINGER_OPENACCESS_ENDPOINT = os.getenv("SPRINGER_OPENACCESS_ENDPOINT", "/openaccess/json")
 SPRINGER_METADATA_ENDPOINT = os.getenv("SPRINGER_METADATA_ENDPOINT", "/metadata/json")
 SPRINGER_FULLTEXT_ENDPOINT = os.getenv("SPRINGER_FULLTEXT_ENDPOINT", "/xmldata/jats")
+PROVIDER_REQUEST_TIMEOUT = float(os.getenv("PROVIDER_REQUEST_TIMEOUT_SECONDS", "2.5"))
+PROVIDER_DISCOVERY_BUDGET = float(os.getenv("PROVIDER_DISCOVERY_BUDGET_SECONDS", "5"))
 
 
-def _get_json(url: str, headers=None):
+def _get_json(url: str, headers=None, timeout_seconds: float = PROVIDER_REQUEST_TIMEOUT):
     req = request.Request(url, headers=headers or {})
-    with request.urlopen(req, timeout=20) as response:
+    with request.urlopen(req, timeout=timeout_seconds) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
@@ -41,12 +44,12 @@ def _normalize_springer_urls(record: dict):
     return landing, pdf
 
 
-def search_openalex(query: str, per_page: int = 5):
+def search_openalex(query: str, per_page: int = 5, timeout_seconds: float = PROVIDER_REQUEST_TIMEOUT):
     params = {"search": query, "per-page": per_page, "api_key": OPENALEX_API_KEY}
     if OPENALEX_EMAIL:
         params["mailto"] = OPENALEX_EMAIL
     url = f"{OPENALEX_BASE_URL}/works?" + parse.urlencode(params)
-    data = _get_json(url)
+    data = _get_json(url, timeout_seconds=timeout_seconds)
     results = []
     for item in data.get("results", []):
         pdf_url = item.get("content", {}).get("pdf_url", "")
@@ -73,12 +76,12 @@ def search_openalex(query: str, per_page: int = 5):
     return results
 
 
-def search_crossref(query: str, rows: int = 5):
+def search_crossref(query: str, rows: int = 5, timeout_seconds: float = PROVIDER_REQUEST_TIMEOUT):
     params = {"query": query, "rows": rows}
     if CROSSREF_MAILTO:
         params["mailto"] = CROSSREF_MAILTO
     url = "https://api.crossref.org/works?" + parse.urlencode(params)
-    data = _get_json(url)
+    data = _get_json(url, timeout_seconds=timeout_seconds)
     results = []
     for item in data.get("message", {}).get("items", []):
         title = item.get("title", [""])
@@ -105,14 +108,14 @@ def search_crossref(query: str, rows: int = 5):
     return results
 
 
-def search_semantic_scholar(query: str, limit: int = 5):
+def search_semantic_scholar(query: str, limit: int = 5, timeout_seconds: float = PROVIDER_REQUEST_TIMEOUT):
     headers = {}
     if SEMANTIC_SCHOLAR_API_KEY:
         headers["x-api-key"] = SEMANTIC_SCHOLAR_API_KEY
     url = "https://api.semanticscholar.org/graph/v1/paper/search?" + parse.urlencode(
         {"query": query, "limit": limit, "fields": "title,year,url,authors"}
     )
-    data = _get_json(url, headers=headers)
+    data = _get_json(url, headers=headers, timeout_seconds=timeout_seconds)
     results = []
     for item in data.get("data", []):
         results.append(
@@ -133,7 +136,7 @@ def search_semantic_scholar(query: str, limit: int = 5):
     return results
 
 
-def search_springer(query: str, endpoint_path: str | None = None, page_size: int = 5):
+def search_springer(query: str, endpoint_path: str | None = None, page_size: int = 5, timeout_seconds: float = PROVIDER_REQUEST_TIMEOUT):
     endpoint_path = endpoint_path or SPRINGER_META_ENDPOINT
     params = {
         "api_key": SPRINGER_API_KEY,
@@ -142,7 +145,7 @@ def search_springer(query: str, endpoint_path: str | None = None, page_size: int
         "p": page_size,
     }
     url = f"{SPRINGER_API_BASE_URL}{endpoint_path}?" + parse.urlencode(params)
-    data = _get_json(url)
+    data = _get_json(url, timeout_seconds=timeout_seconds)
     results = []
     for item in data.get("records", []):
         landing_url, pdf_url = _normalize_springer_urls(item)
@@ -170,42 +173,49 @@ def discover_external_content(query: str, limit_per_provider: int = 3):
     providers = []
     merged_results = []
 
+    configured_providers = []
     if OPENALEX_API_KEY:
-        try:
-            openalex_results = search_openalex(query, per_page=limit_per_provider)
-            providers.append(_provider_payload("OpenAlex", "ok", openalex_results))
-            merged_results.extend(openalex_results)
-        except (HTTPError, URLError, TimeoutError, ValueError) as exc:
-            status = "quota_exhausted" if getattr(exc, "code", None) in {402, 429} else "unavailable"
-            providers.append(_provider_payload("OpenAlex", status, message=str(exc)))
+        configured_providers.append(("OpenAlex", lambda: search_openalex(query, per_page=limit_per_provider)))
     else:
         providers.append(_provider_payload("OpenAlex", "missing_key", message="No OPENALEX_API_KEY configured."))
 
-    try:
-        crossref_results = search_crossref(query, rows=limit_per_provider)
-        providers.append(_provider_payload("Crossref", "ok", crossref_results))
-        merged_results.extend(crossref_results)
-    except (HTTPError, URLError, TimeoutError, ValueError) as exc:
-        providers.append(_provider_payload("Crossref", "unavailable", message=str(exc)))
-
-    try:
-        semantic_results = search_semantic_scholar(query, limit=limit_per_provider)
-        providers.append(_provider_payload("Semantic Scholar", "ok", semantic_results))
-        merged_results.extend(semantic_results)
-    except (HTTPError, URLError, TimeoutError, ValueError) as exc:
-            status = "quota_exhausted" if getattr(exc, "code", None) == 429 else "unavailable"
-            providers.append(_provider_payload("Semantic Scholar", status, message=str(exc)))
+    configured_providers.append(("Crossref", lambda: search_crossref(query, rows=limit_per_provider)))
+    configured_providers.append(("Semantic Scholar", lambda: search_semantic_scholar(query, limit=limit_per_provider)))
 
     if SPRINGER_API_KEY:
-        try:
-            springer_results = search_springer(query, page_size=limit_per_provider)
-            providers.append(_provider_payload("Springer Nature", "ok", springer_results))
-            merged_results.extend(springer_results)
-        except (HTTPError, URLError, TimeoutError, ValueError) as exc:
-            status = "quota_exhausted" if getattr(exc, "code", None) in {401, 403, 429} else "unavailable"
-            providers.append(_provider_payload("Springer Nature", status, message=str(exc)))
+        configured_providers.append(("Springer Nature", lambda: search_springer(query, page_size=limit_per_provider)))
     else:
         providers.append(_provider_payload("Springer Nature", "missing_key", message="No SPRINGER_API_KEY configured."))
+
+    future_map = {}
+    with ThreadPoolExecutor(max_workers=max(1, len(configured_providers))) as executor:
+        for name, func in configured_providers:
+            future_map[executor.submit(func)] = name
+
+        try:
+            for future in as_completed(future_map, timeout=PROVIDER_DISCOVERY_BUDGET):
+                name = future_map[future]
+                try:
+                    results = future.result()
+                    providers.append(_provider_payload(name, "ok", results))
+                    merged_results.extend(results)
+                except (HTTPError, URLError, TimeoutError, ValueError) as exc:
+                    if name == "OpenAlex":
+                        status = "quota_exhausted" if getattr(exc, "code", None) in {402, 429} else "unavailable"
+                    elif name == "Semantic Scholar":
+                        status = "quota_exhausted" if getattr(exc, "code", None) == 429 else "unavailable"
+                    elif name == "Springer Nature":
+                        status = "quota_exhausted" if getattr(exc, "code", None) in {401, 403, 429} else "unavailable"
+                    else:
+                        status = "unavailable"
+                    providers.append(_provider_payload(name, status, message=str(exc)))
+        except TimeoutError:
+            pass
+
+        completed = {future_map[future] for future in future_map if future.done()}
+        for name in [provider_name for provider_name, _ in configured_providers]:
+            if name not in completed and not any(item["name"] == name for item in providers):
+                providers.append(_provider_payload(name, "timed_out", message="Provider search exceeded the fast chat time budget."))
 
     providers.append(
         _provider_payload(

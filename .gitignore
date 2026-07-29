@@ -6,3 +6,4 @@ media/
 staticfiles/
 .env
 .venv/
+debug.log

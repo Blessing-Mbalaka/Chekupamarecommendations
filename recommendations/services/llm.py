@@ -14,11 +14,12 @@ def cosine_similarity(left, right) -> float:
     return numerator / (left_norm * right_norm)
 
 
-def backend_status():
+def backend_status(include_models: bool = True):
+    models = ollama.list_models() if include_models else []
     return {
         "gemini": gemini.is_configured(),
-        "ollama": ollama.is_available(),
-        "ollama_models": [model.get("name", "") for model in ollama.list_models()],
+        "ollama": bool(models) if include_models else ollama.is_available(),
+        "ollama_models": [model.get("name", "") for model in models],
     }
 
 
@@ -35,7 +36,12 @@ def refine_search_query(student_message: str, challenge_text: str = "", lecturer
         if refined:
             return refined.strip(), "gemini"
     if ollama.is_available():
-        refined = ollama.generate_text(system_instruction, prompt)
+        refined = ollama.generate_text(
+            system_instruction,
+            prompt,
+            model=ollama.OLLAMA_FAST_TEXT_MODEL,
+            timeout_seconds=min(ollama.OLLAMA_TEXT_TIMEOUT, 2),
+        )
         if refined:
             return refined.strip(), "ollama"
     return student_message.strip(), "fallback"
@@ -47,7 +53,12 @@ def generate_chat_text(system_instruction: str, contents: list[str]) -> tuple[st
         if response:
             return response, "gemini"
     if ollama.is_available():
-        response = ollama.generate_text(system_instruction, "\n".join(contents))
+        response = ollama.generate_text(
+            system_instruction,
+            "\n".join(contents),
+            model=ollama.OLLAMA_FAST_TEXT_MODEL,
+            timeout_seconds=min(ollama.OLLAMA_TEXT_TIMEOUT, 2),
+        )
         if response:
             return response, "ollama"
     return "", "fallback"

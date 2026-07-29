@@ -44,6 +44,11 @@ OLLAMA_EMBED_MODEL=nomic-embed-text:latest
 If `GEMINI_API_KEY` is missing, the chatbot still works using the local recommendation fallback.
 If Ollama is running locally, the chatbot can also fall back to your local models for refinement, response generation, and embeddings.
 
+The chat request path is intentionally kept fast:
+- provider calls are bounded by short per-provider timeouts
+- provider discovery has a global time budget
+- chat recommendations skip expensive on-the-fly embedding generation
+
 ## Other API Notes
 
 - OpenAlex: free and a strong default choice for academic discovery. Current docs indicate API keys are now required for API usage, and an email is still useful for identification.

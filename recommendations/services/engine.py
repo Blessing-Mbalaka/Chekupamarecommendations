@@ -28,9 +28,11 @@ def _material_text(material: Material) -> str:
     )
 
 
-def _get_material_embedding(material: Material):
+def _get_material_embedding(material: Material, *, allow_generation: bool = True):
     if material.embedding:
         return material.embedding, material.source_provider or "cached"
+    if not allow_generation:
+        return [], "skipped"
     source_text = material.semantic_text or _material_text(material)
     embedding, backend = embed_text(source_text)
     if embedding:
@@ -40,7 +42,15 @@ def _get_material_embedding(material: Material):
     return embedding, backend
 
 
-def recommend_for_student(student, course=None, query_text="", limit=5):
+def recommend_for_student(
+    student,
+    course=None,
+    query_text="",
+    limit=5,
+    *,
+    use_semantic=True,
+    generate_missing_embeddings=True,
+):
     materials = Material.objects.select_related("course", "topic").filter(is_validated=True)
     if course is not None:
         materials = materials.filter(course=course)
@@ -61,7 +71,7 @@ def recommend_for_student(student, course=None, query_text="", limit=5):
         )
     )
     interest_tokens = _tokenize(profile_text)
-    query_embedding, _ = embed_text(profile_text) if profile_text else ([], "fallback")
+    query_embedding, _ = embed_text(profile_text) if profile_text and use_semantic else ([], "fallback")
 
     weak_topics = []
     attempts = (
@@ -94,7 +104,11 @@ def recommend_for_student(student, course=None, query_text="", limit=5):
         if material.source_origin == Material.SourceOrigin.EXTERNAL:
             score += Decimal("0.5")
 
-        material_embedding, _ = _get_material_embedding(material) if query_embedding else ([], "fallback")
+        material_embedding, _ = (
+            _get_material_embedding(material, allow_generation=generate_missing_embeddings)
+            if query_embedding
+            else ([], "fallback")
+        )
         semantic_score = cosine_similarity(query_embedding, material_embedding) if query_embedding and material_embedding else 0.0
         if semantic_score > 0:
             score += Decimal(str(round(semantic_score * 10, 2)))

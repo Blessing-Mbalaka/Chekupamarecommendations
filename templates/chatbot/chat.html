@@ -38,6 +38,8 @@
                 </div>
                 {% if latest_bot_message.metadata.ollama_status.ollama_models %}
                     <p><strong>Ollama fallbacks:</strong> {{ latest_bot_message.metadata.ollama_status.ollama_models|join:", " }}</p>
+                {% elif latest_bot_message.metadata.ollama_status.ollama %}
+                    <p><strong>Ollama fallbacks:</strong> available</p>
                 {% endif %}
             </div>
         {% endif %}

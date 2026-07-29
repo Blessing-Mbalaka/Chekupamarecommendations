@@ -1,7 +1,6 @@
 from ingestion.services.providers import discover_external_content, persist_external_results
 from learning.models import LecturerPrompt
 from recommendations.services.engine import recommend_for_student, store_recommendations
-from recommendations.services.clusters import update_material_clusters
 from recommendations.services.llm import backend_status, generate_chat_text, refine_search_query
 
 from chatbot.models import ChatMessage
@@ -24,13 +23,13 @@ def generate_bot_response(message: ChatMessage):
         course=session.course,
         uploaded_by=student,
     ) if session.course else []
-    if external_materials:
-        update_material_clusters(external_materials)
     recommendations = recommend_for_student(
         student=student,
         course=session.course,
         query_text=refined_query or message.content,
         limit=3,
+        use_semantic=False,
+        generate_missing_embeddings=False,
     )
     store_recommendations(student, recommendations, related_message=message)
 
@@ -88,6 +87,6 @@ def generate_bot_response(message: ChatMessage):
             "query_backend": query_backend,
             "response_backend": response_backend,
             "provider_statuses": discovery_payload["providers"],
-            "ollama_status": backend_status(),
+            "ollama_status": backend_status(include_models=False),
         },
     }

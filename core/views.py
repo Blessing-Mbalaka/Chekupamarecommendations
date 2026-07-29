@@ -7,6 +7,7 @@ from chatbot.models import ChatSession
 from core.services.health import chatbot_health_snapshot
 from learning.models import AssessmentAttempt, BaselineAssessment, Course, Material
 from recommendations.models import Recommendation
+from recommendations.services.presentation import unique_recommendations
 
 
 def home_view(request):
@@ -20,7 +21,9 @@ def dashboard_view(request):
     courses = Course.objects.all()[:6]
     materials = Material.objects.select_related("course").filter(is_validated=True)[:6]
     assessments = BaselineAssessment.objects.filter(is_active=True)[:6]
-    recommendations = Recommendation.objects.select_related("material").filter(student=request.user)[:5]
+    recommendations = unique_recommendations(
+        Recommendation.objects.select_related("material").filter(student=request.user).order_by("-created_at")[:20]
+    )[:5]
     latest_attempt = AssessmentAttempt.objects.filter(student=request.user).order_by("-submitted_at").first()
     session = ChatSession.objects.filter(student=request.user).first()
     analytics_count = AnalyticsEvent.objects.filter(user=request.user).count()
