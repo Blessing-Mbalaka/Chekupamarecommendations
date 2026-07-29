@@ -39,11 +39,21 @@ class MaterialAdmin(admin.ModelAdmin):
         "source_origin",
         "source_type",
         "source_provider",
+        "source_endpoint",
         "publication_year",
         "is_validated",
     )
     list_filter = ("source_origin", "source_type", "is_validated", "course")
-    search_fields = ("title", "description", "tags", "external_url", "original_source_url", "source_provider")
+    search_fields = (
+        "title",
+        "description",
+        "tags",
+        "external_url",
+        "original_source_url",
+        "source_provider",
+        "source_endpoint",
+        "source_record_id",
+    )
 
 
 class AssessmentQuestionInline(admin.TabularInline):

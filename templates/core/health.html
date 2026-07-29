@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="panel">
+    <p class="eyebrow">Operations</p>
+    <h2>API and chatbot health</h2>
+    <p class="muted">Visible to non-student users so platform integrations can be checked quickly.</p>
+</section>
+
+<section class="two-column">
+    <article class="panel">
+        <h3>Chatbot backends</h3>
+        {% for item in health.chatbot %}
+            <div class="health-row">
+                <strong>{{ item.name }}</strong>
+                <span class="provider-badge provider-badge--{{ item.status }}">{{ item.status }}</span>
+                <p class="muted">{{ item.detail }}</p>
+            </div>
+        {% endfor %}
+    </article>
+    <article class="panel">
+        <h3>External providers</h3>
+        {% for item in health.providers %}
+            <div class="health-row">
+                <strong>{{ item.name }}</strong>
+                <span class="provider-badge provider-badge--{{ item.status }}">{{ item.status }}</span>
+                <p class="muted">{{ item.mode }} | {{ item.endpoint }}</p>
+            </div>
+        {% endfor %}
+    </article>
+</section>
+{% endblock %}

@@ -22,6 +22,9 @@
                     <a href="{% url 'learning:material_list' %}">Materials</a>
                     <a href="{% url 'chatbot:chat' %}">Chatbot</a>
                     {% if user.is_staff or user.role == 'lecturer' or user.role == 'ta' or user.role == 'admin' %}
+                        <a href="{% url 'core:health' %}">System Health</a>
+                    {% endif %}
+                    {% if user.is_staff or user.role == 'lecturer' or user.role == 'ta' or user.role == 'admin' %}
                         <a href="/admin/">Admin Console</a>
                     {% endif %}
                     <form method="post" action="{% url 'logout' %}">

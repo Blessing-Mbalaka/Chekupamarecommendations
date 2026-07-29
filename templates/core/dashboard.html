@@ -82,5 +82,12 @@
         <p class="muted">Admin can review thematic 3D vectors in the recommendations admin once materials have embeddings.</p>
         <a href="/admin/recommendations/materialembeddingcluster/" class="ghost-button">Open cluster admin</a>
     </article>
+    {% if user.is_staff or user.role == 'lecturer' or user.role == 'ta' or user.role == 'admin' %}
+        <article class="panel">
+            <h3>System health</h3>
+            <p class="muted">Check Gemini, Ollama, OpenAlex, Springer Nature, and other provider availability.</p>
+            <a href="{% url 'core:health' %}" class="ghost-button">Open health console</a>
+        </article>
+    {% endif %}
 </section>
 {% endblock %}

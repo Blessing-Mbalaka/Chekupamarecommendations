@@ -49,7 +49,8 @@ If Ollama is running locally, the chatbot can also fall back to your local model
 - OpenAlex: free and a strong default choice for academic discovery. Current docs indicate API keys are now required for API usage, and an email is still useful for identification.
 - Crossref: free and useful for DOI and paper metadata lookup.
 - Semantic Scholar: useful for paper discovery; an API key is optional for low-volume usage but worth supporting.
-- YouTube: no key is needed for a plain embedded video if you already have the video URL, but a key is needed for YouTube Data API search and metadata retrieval.
+- Springer Nature: supported as an external provider using `api.springernature.com` endpoints. Current official docs show `meta/v2`, `metadata`, `openaccess`, and full-text/TDM paths under that host.
+- YouTube: this app currently treats YouTube as manual-only. Known URLs can be stored and embedded without using the YouTube Data API.
 - Scopus: usually commercial or institution-gated, so I have left it as a future connector rather than a default path.
 
 ## Run Locally

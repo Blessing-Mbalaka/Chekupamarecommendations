@@ -12,7 +12,12 @@ OPENALEX_API_KEY = os.getenv("OPENALEX_API_KEY", "")
 OPENALEX_EMAIL = os.getenv("OPENALEX_EMAIL", "")
 CROSSREF_MAILTO = os.getenv("CROSSREF_MAILTO", "")
 SEMANTIC_SCHOLAR_API_KEY = os.getenv("SEMANTIC_SCHOLAR_API_KEY", "")
-YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", "")
+SPRINGER_API_BASE_URL = os.getenv("SPRINGER_API_BASE_URL", "https://api.springernature.com")
+SPRINGER_API_KEY = os.getenv("SPRINGER_API_KEY", "")
+SPRINGER_META_ENDPOINT = os.getenv("SPRINGER_META_ENDPOINT", "/meta/v2/json")
+SPRINGER_OPENACCESS_ENDPOINT = os.getenv("SPRINGER_OPENACCESS_ENDPOINT", "/openaccess/json")
+SPRINGER_METADATA_ENDPOINT = os.getenv("SPRINGER_METADATA_ENDPOINT", "/metadata/json")
+SPRINGER_FULLTEXT_ENDPOINT = os.getenv("SPRINGER_FULLTEXT_ENDPOINT", "/xmldata/jats")
 
 
 def _get_json(url: str, headers=None):
@@ -23,6 +28,17 @@ def _get_json(url: str, headers=None):
 
 def _provider_payload(name: str, status: str, results=None, message: str = ""):
     return {"name": name, "status": status, "results": results or [], "message": message}
+
+
+def _normalize_springer_urls(record: dict):
+    urls = record.get("url", []) or []
+    if isinstance(urls, list):
+        landing = next((item.get("value", "") for item in urls if item.get("format") in {"html", "web"}), "")
+        pdf = next((item.get("value", "") for item in urls if item.get("format") == "pdf"), "")
+    else:
+        landing = ""
+        pdf = ""
+    return landing, pdf
 
 
 def search_openalex(query: str, per_page: int = 5):
@@ -41,9 +57,11 @@ def search_openalex(query: str, per_page: int = 5):
                 "title": item.get("title", ""),
                 "year": item.get("publication_year"),
                 "source_provider": "OpenAlex",
+                "source_endpoint": f"{OPENALEX_BASE_URL}/works",
                 "source_type": Material.SourceType.PAPER,
                 "original_source_url": item.get("primary_location", {}).get("landing_page_url", ""),
                 "source_citation": item.get("doi", ""),
+                "source_record_id": item.get("id", ""),
                 "authors": ", ".join(author.get("author", {}).get("display_name", "") for author in item.get("authorships", [])),
                 "external_url": item.get("primary_location", {}).get("landing_page_url", ""),
                 "pdf_url": pdf_url,
@@ -71,10 +89,12 @@ def search_crossref(query: str, rows: int = 5):
                 "title": title[0] if title else "",
                 "year": year,
                 "source_provider": "Crossref",
+                "source_endpoint": "https://api.crossref.org/works",
                 "source_type": Material.SourceType.PAPER,
                 "original_source_url": item.get("URL", ""),
                 "external_url": item.get("URL", ""),
                 "source_citation": item.get("DOI", ""),
+                "source_record_id": item.get("DOI", ""),
                 "authors": ", ".join(
                     " ".join(filter(None, [author.get("given"), author.get("family")]))
                     for author in item.get("author", [])
@@ -100,10 +120,12 @@ def search_semantic_scholar(query: str, limit: int = 5):
                 "title": item.get("title", ""),
                 "year": item.get("year"),
                 "source_provider": "Semantic Scholar",
+                "source_endpoint": "https://api.semanticscholar.org/graph/v1/paper/search",
                 "source_type": Material.SourceType.PAPER,
                 "original_source_url": item.get("url", ""),
                 "external_url": item.get("url", ""),
                 "source_citation": item.get("paperId", ""),
+                "source_record_id": item.get("paperId", ""),
                 "authors": ", ".join(author.get("name", "") for author in item.get("authors", [])),
                 "description": "Semantic Scholar result",
             }
@@ -111,34 +133,34 @@ def search_semantic_scholar(query: str, limit: int = 5):
     return results
 
 
-def search_youtube(query: str, max_results: int = 5):
-    if not YOUTUBE_API_KEY:
-        return []
+def search_springer(query: str, endpoint_path: str | None = None, page_size: int = 5):
+    endpoint_path = endpoint_path or SPRINGER_META_ENDPOINT
     params = {
-        "part": "snippet",
-        "q": query,
-        "type": "video",
-        "maxResults": max_results,
-        "key": YOUTUBE_API_KEY,
+        "api_key": SPRINGER_API_KEY,
+        "q": f'keyword:"{query}"',
+        "s": 1,
+        "p": page_size,
     }
-    url = "https://www.googleapis.com/youtube/v3/search?" + parse.urlencode(params)
+    url = f"{SPRINGER_API_BASE_URL}{endpoint_path}?" + parse.urlencode(params)
     data = _get_json(url)
     results = []
-    for item in data.get("items", []):
-        video_id = item.get("id", {}).get("videoId", "")
-        snippet = item.get("snippet", {})
+    for item in data.get("records", []):
+        landing_url, pdf_url = _normalize_springer_urls(item)
+        publication_date = item.get("publicationDate", "")
         results.append(
             {
-                "title": snippet.get("title", ""),
-                "year": (snippet.get("publishedAt", "") or "")[:4] or None,
-                "source_provider": "YouTube",
-                "source_type": Material.SourceType.VIDEO,
-                "original_source_url": f"https://www.youtube.com/watch?v={video_id}",
-                "external_url": f"https://www.youtube.com/watch?v={video_id}",
-                "source_citation": video_id,
-                "authors": snippet.get("channelTitle", ""),
-                "description": snippet.get("description", ""),
-                "youtube_title": snippet.get("title", ""),
+                "title": item.get("title", ""),
+                "year": publication_date[:4] if publication_date else None,
+                "source_provider": "Springer Nature",
+                "source_endpoint": f"{SPRINGER_API_BASE_URL}{endpoint_path}",
+                "source_type": Material.SourceType.PAPER,
+                "original_source_url": landing_url,
+                "external_url": landing_url,
+                "source_citation": item.get("doi", item.get("identifier", "")),
+                "source_record_id": item.get("identifier", item.get("doi", "")),
+                "authors": ", ".join(creator.get("creator", "") for creator in item.get("creators", [])),
+                "description": item.get("abstract", "") or item.get("publicationName", ""),
+                "pdf_url": pdf_url,
             }
         )
     return results
@@ -171,19 +193,27 @@ def discover_external_content(query: str, limit_per_provider: int = 3):
         providers.append(_provider_payload("Semantic Scholar", "ok", semantic_results))
         merged_results.extend(semantic_results)
     except (HTTPError, URLError, TimeoutError, ValueError) as exc:
-        status = "quota_exhausted" if getattr(exc, "code", None) == 429 else "unavailable"
-        providers.append(_provider_payload("Semantic Scholar", status, message=str(exc)))
+            status = "quota_exhausted" if getattr(exc, "code", None) == 429 else "unavailable"
+            providers.append(_provider_payload("Semantic Scholar", status, message=str(exc)))
 
-    if YOUTUBE_API_KEY:
+    if SPRINGER_API_KEY:
         try:
-            youtube_results = search_youtube(query, max_results=limit_per_provider)
-            providers.append(_provider_payload("YouTube", "ok", youtube_results))
-            merged_results.extend(youtube_results)
+            springer_results = search_springer(query, page_size=limit_per_provider)
+            providers.append(_provider_payload("Springer Nature", "ok", springer_results))
+            merged_results.extend(springer_results)
         except (HTTPError, URLError, TimeoutError, ValueError) as exc:
-            status = "quota_exhausted" if getattr(exc, "code", None) == 403 else "unavailable"
-            providers.append(_provider_payload("YouTube", status, message=str(exc)))
+            status = "quota_exhausted" if getattr(exc, "code", None) in {401, 403, 429} else "unavailable"
+            providers.append(_provider_payload("Springer Nature", status, message=str(exc)))
     else:
-        providers.append(_provider_payload("YouTube", "missing_key", message="No YOUTUBE_API_KEY configured."))
+        providers.append(_provider_payload("Springer Nature", "missing_key", message="No SPRINGER_API_KEY configured."))
+
+    providers.append(
+        _provider_payload(
+            "YouTube",
+            "manual_only",
+            message="YouTube resources are manual-only embeds/uploads in this platform.",
+        )
+    )
 
     return {"query": query, "providers": providers, "results": merged_results}
 
@@ -203,6 +233,8 @@ def persist_external_results(discovery_payload: dict, course=None, topic=None, u
             "source_origin": Material.SourceOrigin.EXTERNAL,
             "source_type": item.get("source_type", Material.SourceType.PAPER),
             "source_provider": item.get("source_provider", ""),
+            "source_endpoint": item.get("source_endpoint", ""),
+            "source_record_id": item.get("source_record_id", ""),
             "external_url": url,
             "original_source_url": item.get("original_source_url", url),
             "youtube_title": item.get("youtube_title", ""),
@@ -218,3 +250,53 @@ def persist_external_results(discovery_payload: dict, course=None, topic=None, u
         )
         materials.append(material)
     return materials
+
+
+def provider_health():
+    health = []
+    health.append(
+        {
+            "name": "OpenAlex",
+            "configured": bool(OPENALEX_API_KEY),
+            "mode": "api",
+            "endpoint": f"{OPENALEX_BASE_URL}/works",
+            "status": "configured" if OPENALEX_API_KEY else "missing_key",
+        }
+    )
+    health.append(
+        {
+            "name": "Crossref",
+            "configured": True,
+            "mode": "api",
+            "endpoint": "https://api.crossref.org/works",
+            "status": "configured",
+        }
+    )
+    health.append(
+        {
+            "name": "Semantic Scholar",
+            "configured": True,
+            "mode": "api",
+            "endpoint": "https://api.semanticscholar.org/graph/v1/paper/search",
+            "status": "configured_optional_key" if SEMANTIC_SCHOLAR_API_KEY else "public_mode",
+        }
+    )
+    health.append(
+        {
+            "name": "Springer Nature",
+            "configured": bool(SPRINGER_API_KEY),
+            "mode": "api",
+            "endpoint": f"{SPRINGER_API_BASE_URL}{SPRINGER_META_ENDPOINT}",
+            "status": "configured" if SPRINGER_API_KEY else "missing_key",
+        }
+    )
+    health.append(
+        {
+            "name": "YouTube",
+            "configured": True,
+            "mode": "manual_only",
+            "endpoint": "manual embed",
+            "status": "manual_only",
+        }
+    )
+    return health

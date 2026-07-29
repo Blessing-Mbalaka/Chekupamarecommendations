@@ -280,6 +280,26 @@ select {
     background: #f6dcdc;
 }
 
+.provider-badge--configured,
+.provider-badge--public_mode,
+.provider-badge--configured_optional_key,
+.provider-badge--manual_only,
+.provider-badge--missing_key,
+.provider-badge--ok {
+    background: #e7efe9;
+}
+
+.provider-badge--missing_key,
+.provider-badge--quota_exhausted,
+.provider-badge--manual_only {
+    background: #fff0d7;
+}
+
+.health-row {
+    padding: 14px 0;
+    border-bottom: 1px solid var(--line);
+}
+
 .recommendation-bubble {
     padding: 16px;
     border-radius: 22px;

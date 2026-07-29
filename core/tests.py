@@ -20,4 +20,25 @@ class DashboardTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Your learning hub")
 
-# Create your tests here.
+    def test_health_console_denies_student(self):
+        user = User.objects.create_user(
+            username="student_health",
+            password="password123",
+            email="student_health@example.com",
+            role="student",
+        )
+        self.client.login(username="student_health", password="password123")
+        response = self.client.get(reverse("core:health"))
+        self.assertEqual(response.status_code, 403)
+
+    def test_health_console_allows_ta(self):
+        user = User.objects.create_user(
+            username="ta_user",
+            password="password123",
+            email="ta@example.com",
+            role="ta",
+        )
+        self.client.login(username="ta_user", password="password123")
+        response = self.client.get(reverse("core:health"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "API and chatbot health")

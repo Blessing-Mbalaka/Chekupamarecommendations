@@ -48,12 +48,15 @@
                     <div>
                         <strong>{{ recommendation.material.title }}</strong>
                         <p>
-                            {{ recommendation.material.get_source_origin_display }} |
+                            {{ recommendation.material.source_bucket }} |
                             {{ recommendation.material.get_source_type_display }}
                             {% if recommendation.material.source_provider %}
                                 | {{ recommendation.material.source_provider }}
                             {% endif %}
                         </p>
+                        {% if recommendation.material.source_endpoint %}
+                            <p>Endpoint: {{ recommendation.material.source_endpoint }}</p>
+                        {% endif %}
                     </div>
                     <div class="button-stack">
                         <a class="secondary-button" href="{{ recommendation.material.get_absolute_url }}">View</a>

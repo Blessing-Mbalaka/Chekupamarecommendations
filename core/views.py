@@ -1,8 +1,10 @@
 from django.contrib.auth.decorators import login_required
+from django.http import HttpResponseForbidden
 from django.shortcuts import redirect, render
 
 from analytics_app.models import AnalyticsEvent
 from chatbot.models import ChatSession
+from core.services.health import chatbot_health_snapshot
 from learning.models import AssessmentAttempt, BaselineAssessment, Course, Material
 from recommendations.models import Recommendation
 
@@ -37,4 +39,9 @@ def dashboard_view(request):
         },
     )
 
-# Create your views here.
+
+@login_required
+def health_view(request):
+    if request.user.role == "student" and not request.user.is_staff:
+        return HttpResponseForbidden("This health console is only available to staff, lecturers, and teaching assistants.")
+    return render(request, "core/health.html", {"health": chatbot_health_snapshot()})

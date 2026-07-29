@@ -6,12 +6,14 @@
     <h2>{{ material.title }}</h2>
     <p class="muted">{{ material.description|default:"No description supplied yet." }}</p>
     <div class="meta-grid">
-        <div><strong>Origin</strong><span>{{ material.get_source_origin_display }}</span></div>
+        <div><strong>Origin</strong><span>{{ material.source_bucket }}</span></div>
         <div><strong>Topic</strong><span>{% if material.topic %}{{ material.topic.title }}{% else %}General{% endif %}</span></div>
         <div><strong>Year</strong><span>{{ material.publication_year|default:"Unknown" }}</span></div>
         <div><strong>Type</strong><span>{{ material.get_source_type_display }}</span></div>
         <div><strong>Tags</strong><span>{{ material.tags|default:"None" }}</span></div>
         <div><strong>Provider</strong><span>{{ material.source_provider|default:"Not set" }}</span></div>
+        <div><strong>Endpoint</strong><span>{{ material.source_endpoint|default:"Internal upload flow" }}</span></div>
+        <div><strong>Record ID</strong><span>{{ material.source_record_id|default:"Stored file only" }}</span></div>
     </div>
     {% if material.source_citation %}
         <p><strong>Source citation:</strong> {{ material.source_citation }}</p>

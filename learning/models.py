@@ -67,6 +67,16 @@ class Material(models.Model):
         blank=True,
         help_text="Examples: Uploaded by Lecturer, OpenAlex, Semantic Scholar, YouTube.",
     )
+    source_endpoint = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Exact upstream endpoint or ingest route used to create this material.",
+    )
+    source_record_id = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Upstream record identifier such as DOI, OpenAlex ID, Springer identifier, or video ID.",
+    )
     file = models.FileField(upload_to="materials/", blank=True)
     external_url = models.URLField(blank=True)
     original_source_url = models.URLField(blank=True)
@@ -106,6 +116,10 @@ class Material(models.Model):
         if "youtu.be/" in self.external_url:
             return self.external_url.replace("youtu.be/", "www.youtube.com/embed/")
         return self.external_url
+
+    @property
+    def source_bucket(self):
+        return "External API / Embed" if self.source_origin == self.SourceOrigin.EXTERNAL else "Internal Upload"
 
 
 class BaselineAssessment(models.Model):
