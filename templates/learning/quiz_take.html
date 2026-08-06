@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}{{ quiz.title }} · Quiz{% endblock %}
+{% block content %}
+<section class="panel quiz-hero"><div><p class="eyebrow">{{ quiz.course.code }} · Student quiz</p><h2>{{ quiz.title }}</h2><p class="muted">{{ quiz.description }}</p></div><span class="result-pill">{{ questions|length }} questions</span></section>
+<section class="panel quiz-taking-card">
+    {% if quiz.instructions %}<div class="grounding-notice">{{ quiz.instructions }}</div>{% endif %}
+    {% if questions %}
+        <form method="post" class="quiz-form">{% csrf_token %}{{ form.as_p }}<button class="primary-button" type="submit">Submit quiz</button></form>
+    {% else %}<p class="muted">This quiz does not have questions yet.</p>{% endif %}
+</section>
+{% endblock %}

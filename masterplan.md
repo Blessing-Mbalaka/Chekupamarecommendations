@@ -1,209 +1,153 @@
-# Master Plan
+# Recommendation Engine Master Plan
 
-## Vision
+## Product outcome
 
-Build a modular Django learning platform with an immersive chatbot that personalizes academic content recommendations for students based on:
+Build a source-grounded learning platform that turns structured lecturer uploads, academic API discovery, and YouTube research collections into a searchable knowledge base, topic map, and recommendation system. Every chatbot answer must be traceable to persisted, indexed full text.
 
-- Student profile data and self-declared challenges
-- A baseline assessment configured by lecturers
-- Student chat questions and interaction history
-- Uploaded teaching materials and external academic resources
-- Engagement analytics such as clicks, page visits, and material dwell time
+## Non-negotiable behavior
 
-The platform should support students, lecturers/admins, and teaching assistants, while keeping the implementation API-first, service-oriented, and well documented.
+1. The chatbot answers only from `ContentChunk` records stored in the database.
+2. YouTube metadata alone is never treated as RAG evidence.
+3. A user must paste or upload a YouTube transcript before that video can influence an answer.
+4. Every grounded answer exposes the indexed materials it used.
+5. Discovery, validation, indexing, topic modelling, recommendation, and chat remain separate stages.
+6. Live academic API metadata may be suggested and embedded, but cannot ground an answer until full text is uploaded and indexed.
+7. Quiz generation receives only indexed excerpts; generated JSON remains an editable lecturer draft.
 
-## Core Roles
+## Target data flow
 
-- Admin/Lecturer
-  - Manage users and course structures
-  - Create baseline assessments and chatbot question flows
-  - Upload files, links, and video resources
-  - Review analytics and recommendation outcomes
-- Teaching Assistant
-  - Support lecturer workflows for content, questions, and student follow-up
-  - Review engagement data and student progress
-- Student
-  - Maintain a personalized profile
-  - Complete baseline assessments
-  - Chat with the bot and answer lecturer-authored questions
-  - Receive personalized learning resource recommendations
+```text
+YouTube seed URL
+  -> resolve the real video title
+  -> clean title into a research query
+  -> YouTube Data API search
+  -> collect top N video metadata
+  -> store research run and videos
+  -> user uploads/pastes transcripts
+  -> remove VTT/SRT timestamps and markup
+  -> split into overlapping chunks
+  -> create embeddings and persist chunks
+  -> LDA (or optional BERTopic) theme extraction
+  -> persist multi-theme memberships
+  -> render overlapping topic circles
+  -> retrieve relevant stored chunks
+  -> grounded chatbot answer and recommendations
+```
 
-## Product Modules
+## Implemented architecture
 
-### 1. Accounts and Profiles
+### Research ingestion
 
-- Custom user model with role support
-- Student profile with:
-  - identifiers
-  - location
-  - region
-  - phone number
-  - email
-  - student number
-  - free-text challenges
-- Lecturer/TA profile support
+- `ResearchRun` records the seed URL, resolved title, derived query, requested result count, model, status, course, and optional course topic.
+- `ResearchVideo` persists YouTube metadata and manual transcript state.
+- `ResearchTheme` persists a topic label, keywords, and visualization coordinates/radius.
+- `ResearchVideoTheme` is a weighted many-to-many relationship, allowing genuine overlap rather than forcing each video into one cluster.
+- The YouTube Data API is used for title/search/metadata. Set `YOUTUBE_API_KEY` in `.env`.
+- Transcript fetching is deliberately not automated.
 
-### 2. Learning Domain
+### Vector storage and RAG
 
-- Course
-- Topic
-- Material
-- Baseline assessment
-- Assessment question
-- Student assessment attempt
-- Lecturer-authored chatbot prompts/questions
+- `ContentChunk` is the retrieval boundary and persisted vector store for this Django/SQLite deployment.
+- Uploaded PDF, DOCX, TXT, Markdown, CSV, VTT, and SRT files are extracted and indexed.
+- Manually supplied YouTube transcripts are cleaned and indexed.
+- Semantic retrieval is used when Gemini/Ollama embeddings are available; lexical retrieval remains a deterministic fallback.
+- Chat refreshes configured OpenAlex, Crossref, Semantic Scholar, Springer Nature, and Google Scholar results through a 15-minute query cache; Google Scholar uses the maintained SerpApi Python SDK with `engine=google_scholar`.
+- API results are stored with provider, endpoint, DOI/ISBN, author, journal, publisher, and preview provenance, but remain clearly labelled external suggestions until their full text is indexed.
+- Chat returns a refusal when no indexed chunk matches, even when useful external suggestions are available.
 
-### 3. Content Ingestion
+### Structured curation
 
-- Upload local files such as PDF, DOCX, TXT, PPTX, CSV, and media references
-- Save website resources and YouTube references
-- Metadata capture:
-  - title
-  - authors
-  - publication year
-  - source type
-  - tags
-  - course/topic association
-- Validation and ingestion services
-- Text extraction hooks for future RAG indexing
+- Superusers can classify resources as uploaded files, websites, videos, academic papers, journal articles, books, blogs, or other material.
+- The curation portal and Django admin capture authors, publisher, journal, volume/issue, DOI, ISBN, year, links, and preview URLs.
+- Saving a validated uploaded file through Django admin refreshes its RAG chunks.
+- Local PDF embeds use an authenticated `SAMEORIGIN` preview endpoint; external embeds retain provider-controlled iframe restrictions.
 
-### 4. Chatbot and Recommendations
+### Quiz lifecycle
 
-- Chat sessions and messages
-- Recommendation engine combining:
-  - baseline performance
-  - student challenges
-  - recent questions
-  - course/topic relevance
-  - engagement patterns
-- Response payloads that include:
-  - chatbot answer
-  - recommended materials
-  - rationale
-  - follow-up questions
+- Teaching staff create course quizzes in a dedicated builder, add manual questions, or select indexed materials for LLM-generated JSON drafts.
+- Generated questions retain source-material and backend provenance and remain editable before publication.
+- Published quizzes are available only to enrolled students; attempts, responses, points, correctness, and feedback are persisted.
+- Exact repeated RAG questions reuse a five-minute cache keyed by the question and current retrieved chunk IDs; conversation messages remain permanently stored.
 
-### 5. External Discovery
+### Topic modelling and visualization
 
-- Service layer for free or low-friction academic discovery providers
-- Initial abstraction for:
-  - Crossref
-  - OpenAlex
-  - Semantic Scholar
-  - YouTube metadata lookup
-- Admin flow to review discovered resources before attaching them to the platform
+- LDA uses scikit-learn when installed.
+- BERTopic is an optional selection and runs only when its package/model dependencies are installed; otherwise modelling falls back to LDA.
+- If the modelling dependency is unavailable, a deterministic keyword fallback keeps the workflow operational and labels the run accordingly.
+- A video can belong to several themes based on model weights.
+- The curation console renders theme regions as overlapping SVG circles and lists each video's theme memberships.
 
-### 6. Analytics
+## Functional audit
 
-- Track:
-  - page visits
-  - clicks
-  - material opens
-  - dwell time
-  - chatbot interactions
-- Aggregate:
-  - per-student engagement
-  - material popularity
-  - inferred interest signals
+| Area | Previous state | Current state |
+|---|---|---|
+| YouTube URL parsing | Stored manual links only | Watch, short, live, embed, and `youtu.be` IDs parsed |
+| Title-derived research | Missing | Resolved title is cleaned into the search query |
+| YouTube search/metadata | Missing | Top N search plus detail metadata persisted |
+| Transcripts | Missing | Manual paste/TXT/VTT/SRT upload with cleaning |
+| Topic modelling | Single label from course/topic/tag | Persisted weighted LDA/BERTopic themes |
+| Overlap visualization | Three embedding coordinates only | Multi-membership overlapping circle map |
+| Vector database | Material-level JSON only | Chunk-level persisted embeddings and provenance |
+| Chat grounding | Could call external discovery and use broad fallback | Retrieval-only; refuses without indexed evidence |
+| Citations | Recommendation cards only | Answer metadata lists exact indexed sources |
+| Academic discovery | Admin-only search | Configured APIs refresh cached, labelled chat suggestions |
+| Structured library | Generic file/paper records | Videos, journals, books, blogs, DOI/ISBN and publication metadata |
+| Document extraction | Text-like files only | PDF, DOCX and text-family extraction with safe no-text fallback |
 
-### 7. UI/UX
+## Delivery roadmap
 
-- Clean Django login flow
-- Modular dashboard layouts
-- Sidebar navigation by role
-- Simple, neat, purpose-driven screens
+### Phase 1 — completed foundation
 
-## Architecture
+- Accounts, roles, courses, topics, assessments, materials, analytics, curation, and recommendations.
+- Gemini and Ollama abstraction with deterministic fallbacks.
 
-### Backend Style
+### Phase 2 — completed research/RAG core
 
-- Django project with Django REST Framework for API-first design
-- App-per-domain structure
-- Business logic in dedicated service modules
-- Thin views and serializers
-- Recommendation and ingestion designed behind interfaces for future AI/RAG expansion
+- YouTube title-derived research runs.
+- Top N video metadata persistence.
+- Manual transcript workflow.
+- Chunk persistence and retrieval-only chat.
+- LDA/optional BERTopic themes and overlap visualization.
+- Automated unit and integration coverage.
 
-### Proposed Django Apps
+### Phase 3 — production hardening
 
-- `core`
-- `accounts`
-- `learning`
-- `ingestion`
-- `chatbot`
-- `recommendations`
-- `analytics_app`
+- Move long YouTube searches, modelling, and embedding work to Celery/RQ background jobs.
+- Replace SQLite JSON vectors with PostgreSQL + pgvector when data volume exceeds a small teaching deployment.
+- Add PPTX/EPUB extraction and page/slide-level citation provenance.
+- Add transcript versioning, moderation, validation, and lecturer approval.
+- Add retry/rate-limit handling and quota reporting for YouTube.
+- Add per-course access checks to every retrieved chunk.
 
-### Data Notes
+### Phase 4 — evaluation and governance
 
-- Django `TextField` will be used for the student `challenges` field and other large free-text fields
-- Materials should support uploaded files and external URLs
-- Analytics events should be append-only
+- RAG faithfulness and retrieval-recall test sets.
+- Source coverage, stale content, empty transcript, and embedding health dashboards.
+- Student feedback on answers and recommendation usefulness.
+- Data retention, copyright, accessibility, and consent policy review.
 
-## Delivery Phases
+## Configuration
 
-### Phase 1. Foundation
+```text
+YOUTUBE_API_KEY=...
+OPENALEX_API_KEY=...               # optional/provider-dependent
+CROSSREF_MAILTO=...                # recommended identification
+SEMANTIC_SCHOLAR_API_KEY=...       # optional public-mode enhancement
+SPRINGER_API_KEY=...               # optional
+SERPAPI_API_KEY=...                # optional Google Scholar provider
+GEMINI_API_KEY=...                 # optional
+GEMINI_EMBED_MODEL=...             # optional
+OLLAMA_BASE_URL=...                # optional local fallback
+OLLAMA_EMBED_MODEL=...             # optional local fallback
+```
 
-- Initialize git
-- Create `masterplan.md`
-- Scaffold Django project
-- Configure settings, templates, static files, and environment handling
-- Implement custom user model and role support
+## Acceptance criteria
 
-### Phase 2. Learning and Profile Data
-
-- Student profile model and forms
-- Course/topic/material models
-- Baseline assessment models
-- Lecturer question authoring support
-
-### Phase 3. Ingestion and Recommendation Core
-
-- Admin upload workflows
-- External resource link workflows
-- Recommendation service based on rules and scoring
-- Chat session and message persistence
-
-### Phase 4. Analytics and Dashboards
-
-- Event tracking endpoints
-- Engagement summaries
-- Student and lecturer dashboards
-
-### Phase 5. Polish and Verification
-
-- Documentation
-- Automated tests
-- Playwright UI verification where feasible
-- Stage-by-stage git commits
-
-## Git Stage Plan
-
-- Stage 1: planning and repository bootstrap
-- Stage 2: Django scaffold and auth foundation
-- Stage 3: domain models and admin flows
-- Stage 4: chatbot, recommendation, and analytics features
-- Stage 5: tests, UI refinement, and final verification
-
-## Implementation Checklist
-
-- [x] Initialize repository
-- [x] Create `masterplan.md`
-- [x] Scaffold Django project
-- [x] Configure base settings and templates
-- [x] Add custom user model and roles
-- [x] Add student profile and challenges support
-- [x] Add courses, topics, and materials
-- [x] Add baseline assessment models
-- [x] Add lecturer-authored chatbot questions
-- [x] Add file and link ingestion flows
-- [x] Add external academic discovery service abstraction
-- [x] Add chatbot sessions and messages
-- [x] Add recommendation engine service
-- [x] Add analytics event tracking
-- [x] Add role-based dashboards and sidebar UI
-- [x] Add automated tests
-- [x] Run verification
-- [ ] Commit each implementation stage
-
-## Immediate Next Step
-
-Complete remaining stage commits and optionally add Playwright end-to-end browser tests plus richer external resource ingestion workflows.
+- A superuser can submit a YouTube URL and see the resolved title, derived query, and stored results.
+- No `ContentChunk` is created for a YouTube video before a transcript is manually supplied.
+- TXT/VTT/SRT transcript input is normalized and creates persisted chunks.
+- Topic memberships and circles update after transcript ingestion.
+- Chat answers show sources or explicitly refuse to answer.
+- Configured academic APIs appear in the chat discovery trace, and API metadata never creates `ContentChunk` rows by itself.
+- Uploaded journals/books with extractable PDF or DOCX content create persisted chunks and can preview safely in chat.
+- The full Django test suite and migration check pass.

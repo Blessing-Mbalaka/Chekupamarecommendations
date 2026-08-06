@@ -4,8 +4,6 @@ from django.shortcuts import render
 from .forms import ChatMessageForm
 from .models import ChatMessage, ChatSession
 from .services.chat_engine import generate_bot_response
-from recommendations.models import Recommendation
-from recommendations.services.presentation import unique_recommendations
 
 
 @login_required
@@ -35,14 +33,8 @@ def chat_view(request):
         "chatbot/chat.html",
         {
             "session": session,
-            "messages": session.messages.all(),
+            "chat_messages": session.messages.all(),
             "form": form,
-            "recommendations": unique_recommendations(
-                Recommendation.objects.select_related("material")
-                .filter(student=request.user)
-                .order_by("-created_at")[:20]
-            )[:4],
-            "latest_bot_message": session.messages.filter(sender=ChatMessage.Sender.BOT).order_by("-created_at").first(),
         },
     )
 

@@ -4,6 +4,89 @@ from learning.models import AssessmentQuestion, BaselineAssessment, Course, Lect
 from .warmup import warmup_systems_thinking_cache
 
 
+CURATED_SYSTEMS_THINKING_VIDEOS = [
+    {
+        "video_id": "-sfiReUu3o0",
+        "title": "Systems Thinking: A Little Film About a Big Idea",
+        "provider": "YouTube · Cabrera Research Lab",
+        "description": (
+            "An award-winning introduction to DSRP systems thinking from Cabrera Research Lab, "
+            "a research lab born at Cornell University."
+        ),
+        "tags": "systems thinking, DSRP, mental models, relationships, perspectives",
+        "citation": "https://www.cabreralab.science/publications",
+    },
+    {
+        "video_id": "lpIxTHmiLTE",
+        "title": "Becoming a Systems Thinker: Big-Picture Thinking and Consequences",
+        "provider": "YouTube · IIT Madras",
+        "description": (
+            "An IIT Madras BS programme lecture on big-picture thinking, consequences of actions, "
+            "holistic analysis, and systems-aware decision-making."
+        ),
+        "tags": "systems thinking, big picture, consequences, holistic analysis, problem solving",
+        "citation": "https://study.iitm.ac.in/ds/",
+    },
+    {
+        "video_id": "yYyTUs9ipmc",
+        "title": "An Introduction to Systems Thinking by Gerald Midgley",
+        "provider": "YouTube · Integration and Implementation Sciences",
+        "description": (
+            "A university-level introduction by Professor Gerald Midgley of the Centre for Systems "
+            "Studies, University of Hull, recorded for the i2S conference."
+        ),
+        "tags": "systems thinking, wicked problems, boundaries, complexity, systemic intervention",
+        "citation": "https://i2s.anu.edu.au/resources/featuring-two-most-popular-videos-by-george-richardson-and-gerald-midgley/",
+    },
+    {
+        "video_id": "Hm_UjbsHReI",
+        "title": "Systems Thinking in Action with Professor Gerald Midgley",
+        "provider": "YouTube · Manaaki Whenua Landcare Research",
+        "description": (
+            "Professor Gerald Midgley of the University of Hull introduces systems thinking in action "
+            "for Manaaki Whenua, New Zealand's Crown Research Institute for land and environment."
+        ),
+        "tags": "systems thinking, systems in action, wicked problems, research, intervention",
+        "citation": "https://integrated.landcareresearch.co.nz/resources/systems-thinking.html",
+    },
+]
+
+
+def seed_curated_systems_videos(course, lecturer, topic=None):
+    # Remove the historical demo-only rickroll without touching unrelated user data.
+    Material.objects.filter(course=course, source_record_id="dQw4w9WgXcQ").delete()
+    curated_ids = {item["video_id"] for item in CURATED_SYSTEMS_THINKING_VIDEOS}
+    Material.objects.filter(
+        course=course,
+        source_endpoint="curated systems-thinking starter library",
+    ).exclude(source_record_id__in=curated_ids).delete()
+    materials = []
+    for item in CURATED_SYSTEMS_THINKING_VIDEOS:
+        video_url = f"https://www.youtube.com/watch?v={item['video_id']}"
+        material, _ = Material.objects.update_or_create(
+            course=course,
+            source_record_id=item["video_id"],
+            defaults={
+                "topic": topic,
+                "title": item["title"],
+                "description": item["description"],
+                "source_origin": Material.SourceOrigin.EXTERNAL,
+                "source_type": Material.SourceType.VIDEO,
+                "source_provider": item["provider"],
+                "source_endpoint": "curated systems-thinking starter library",
+                "external_url": video_url,
+                "original_source_url": video_url,
+                "youtube_title": item["title"],
+                "tags": item["tags"],
+                "source_citation": item["citation"],
+                "is_validated": True,
+                "uploaded_by": lecturer,
+            },
+        )
+        materials.append(material)
+    return materials
+
+
 def bootstrap_demo_data():
     lecturer, _ = User.objects.update_or_create(
         username="demo_lecturer",
@@ -126,23 +209,7 @@ def bootstrap_demo_data():
         },
     )
 
-    Material.objects.update_or_create(
-        course=course,
-        title="Systems Thinking Overview Video",
-        defaults={
-            "description": "Manual embedded video placeholder for systems thinking orientation.",
-            "source_origin": Material.SourceOrigin.EXTERNAL,
-            "source_type": Material.SourceType.VIDEO,
-            "source_provider": "YouTube",
-            "source_endpoint": "manual embed",
-            "source_record_id": "dQw4w9WgXcQ",
-            "external_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-            "original_source_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-            "youtube_title": "Systems Thinking Overview Video",
-            "is_validated": True,
-            "uploaded_by": lecturer,
-        },
-    )
+    seed_curated_systems_videos(course, lecturer, topic=topic_feedback)
 
     warmed_entries = warmup_systems_thinking_cache()
     return {

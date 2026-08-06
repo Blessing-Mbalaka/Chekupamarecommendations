@@ -21,9 +21,13 @@
     <div class="panel">
         <h3>All validated materials</h3>
         {% for material in materials %}
-            <a class="list-link" href="{{ material.get_absolute_url }}">
-                {{ material.title }} <span>{{ material.get_source_type_display }}</span>
-            </a>
+            <div class="library-material-row">
+                <a class="list-link" href="{{ material.get_absolute_url }}">
+                    {{ material.title }} <span>{{ material.get_source_type_display }}</span>
+                </a>
+                {% if can_build_quiz %}<a class="library-quiz-action" href="{% url 'learning:quiz_builder' %}?material={{ material.pk }}">Make quiz</a>{% endif %}
+            </div>
+            {% if material.discovered_topics %}<p class="muted">Topics: {{ material.discovered_topics|join:", " }}</p>{% endif %}
         {% empty %}
             <p class="muted">No materials are available yet.</p>
         {% endfor %}

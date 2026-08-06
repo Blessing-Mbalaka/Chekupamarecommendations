@@ -21,6 +21,7 @@ def _material_text(material: Material) -> str:
                 material.youtube_title,
                 material.source_provider,
                 material.source_citation,
+                material.source_preview_url,
                 material.topic.title if material.topic else "",
                 material.course.title,
             ],

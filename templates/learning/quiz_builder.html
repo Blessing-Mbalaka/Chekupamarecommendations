@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}Quiz Builder · UJ Learning Navigator{% endblock %}
+
+{% block content %}
+<section class="panel quiz-hero">
+    <div>
+        <p class="eyebrow">Lecturer workspace</p>
+        <h2>Quiz Builder</h2>
+        <p class="muted">Create a quiz, then add questions manually or generate editable drafts from indexed course material.</p>
+    </div>
+    <a class="ghost-button" href="{% url 'learning:quiz_list' %}">View quizzes</a>
+</section>
+
+<section class="quiz-builder-grid">
+    <article class="panel">
+        <h3>Create a quiz</h3>
+        <form method="post" class="form-panel">
+            {% csrf_token %}
+            {% if selected_material %}<input type="hidden" name="source_material" value="{{ selected_material.pk }}">{% endif %}
+            {{ form.as_p }}
+            <button class="primary-button" type="submit">Create and add questions</button>
+        </form>
+    </article>
+    <article class="panel">
+        <h3>Existing quizzes</h3>
+        {% for quiz in quizzes %}
+            <a class="list-link" href="{% url 'learning:quiz_builder_detail' quiz.pk %}">
+                {{ quiz.title }} <span>{{ quiz.course.code }} · {{ quiz.questions.count }} questions</span>
+            </a>
+        {% empty %}<p class="muted">Create your first quiz here.</p>{% endfor %}
+    </article>
+</section>
+{% endblock %}

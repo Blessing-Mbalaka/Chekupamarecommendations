@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}Quizzes · UJ Learning Navigator{% endblock %}
+
+{% block content %}
+<section class="panel quiz-hero">
+    <div>
+        <p class="eyebrow">Knowledge checks</p>
+        <h2>{% if can_build %}Course quizzes{% else %}Your quizzes{% endif %}</h2>
+        <p class="muted">Practice from course material and review your result immediately.</p>
+    </div>
+    {% if can_build %}<a class="primary-button" href="{% url 'learning:quiz_builder' %}">Open Quiz Builder</a>{% endif %}
+</section>
+
+<section class="quiz-card-grid">
+    {% for quiz in quizzes %}
+        <article class="panel quiz-card">
+            <div class="source-title-row">
+                <span class="result-pill">{{ quiz.course.code }}</span>
+                <span class="provider-badge provider-badge--{% if quiz.is_published %}ok{% else %}manual_only{% endif %}">{% if quiz.is_published %}Published{% else %}Draft{% endif %}</span>
+            </div>
+            <h3>{{ quiz.title }}</h3>
+            <p class="muted">{{ quiz.description|default:"A course knowledge check." }}</p>
+            <p><strong>{{ quiz.questions.count }}</strong> question{{ quiz.questions.count|pluralize }}</p>
+            <div class="button-row">
+                <a class="primary-button" href="{% url 'learning:quiz_take' quiz.pk %}">{% if can_build %}Preview quiz{% else %}Start quiz{% endif %}</a>
+                {% if can_build %}<a class="ghost-button" href="{% url 'learning:quiz_builder_detail' quiz.pk %}">Edit</a>{% endif %}
+            </div>
+        </article>
+    {% empty %}
+        <article class="panel"><p class="muted">No quizzes are available yet.</p></article>
+    {% endfor %}
+</section>
+{% endblock %}

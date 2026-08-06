@@ -1,8 +1,9 @@
 from unittest.mock import patch
 
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 
 from ingestion.services import providers
+from learning.models import Course, Material
 
 
 class ProviderDiscoveryTests(SimpleTestCase):
@@ -27,7 +28,8 @@ class ProviderDiscoveryTests(SimpleTestCase):
 
         self.assertEqual(results[0]["source_provider"], "OpenAlex")
         self.assertEqual(results[0]["license"], "cc-by")
-        self.assertIn("/works/W123.pdf", results[0]["pdf_url"])
+        self.assertEqual(results[0]["openalex_work_id"], "W123")
+        self.assertEqual(results[0]["pdf_url"], "/learning/materials/openalex/W123/pdf/")
 
     @patch("ingestion.services.providers.search_openalex")
     @patch("ingestion.services.providers.search_crossref")
@@ -78,3 +80,70 @@ class ProviderDiscoveryTests(SimpleTestCase):
         self.assertEqual(results[0]["source_provider"], "Springer Nature")
         self.assertEqual(results[0]["source_record_id"], "springer-test-id")
         self.assertEqual(results[0]["pdf_url"], "https://link.springer.com/content/pdf/test.pdf")
+
+    @patch("ingestion.services.providers.serpapi.Client")
+    def test_google_scholar_uses_serpapi_sdk_and_scholar_engine(self, mock_client):
+        mock_client.return_value.search.return_value = {
+            "organic_results": [
+                {
+                    "title": "Systems Thinking Research",
+                    "link": "https://example.org/systems",
+                    "result_id": "scholar-1",
+                    "publication_info": {"summary": "A Researcher - Systems Journal, 2025"},
+                    "resources": [{"file_format": "PDF", "link": "https://example.org/systems.pdf"}],
+                }
+            ]
+        }
+
+        with patch.object(providers, "SERPAPI_API_KEY", "test-key"):
+            results = providers.search_serpapi_scholar("Systems thinking", page_size=10)
+
+        mock_client.assert_called_once_with(api_key="test-key", timeout=providers.PROVIDER_REQUEST_TIMEOUT)
+        params = mock_client.return_value.search.call_args.args[0]
+        self.assertEqual(params["engine"], "google_scholar")
+        self.assertEqual(params["hl"], "en")
+        self.assertEqual(params["num"], 10)
+        self.assertEqual(results[0]["pdf_url"], "https://example.org/systems.pdf")
+
+    @patch("ingestion.services.providers.serpapi.Client")
+    def test_youtube_transcript_uses_serpapi_transcript_engine(self, mock_client):
+        mock_client.return_value.search.return_value = {
+            "transcript": [
+                {"start_ms": 0, "end_ms": 1000, "snippet": "Systems have connected parts."},
+                {"start_ms": 1000, "end_ms": 2000, "snippet": "Feedback changes behaviour."},
+            ]
+        }
+        with patch.object(providers, "SERPAPI_API_KEY", "test-key"):
+            result = providers.fetch_serpapi_youtube_transcript("video123")
+
+        params = mock_client.return_value.search.call_args.args[0]
+        self.assertEqual(params["engine"], "youtube_video_transcript")
+        self.assertEqual(params["v"], "video123")
+        self.assertIn("Feedback changes behaviour", result["text"])
+
+
+class ProviderPersistenceTests(TestCase):
+    def test_null_provider_text_fields_are_stored_as_empty_strings(self):
+        course = Course.objects.create(code="SYS101", title="Systems Thinking")
+        payload = {
+            "results": [
+                {
+                    "title": "OpenAlex result without a license",
+                    "source_provider": "OpenAlex",
+                    "source_record_id": "https://openalex.org/W123",
+                    "license": None,
+                    "description": None,
+                    "authors": None,
+                    "original_source_url": None,
+                }
+            ]
+        }
+
+        materials = providers.persist_external_results(payload, course=course)
+
+        self.assertEqual(len(materials), 1)
+        material = Material.objects.get(pk=materials[0].pk)
+        self.assertEqual(material.tags, "")
+        self.assertEqual(material.description, "")
+        self.assertEqual(material.authors, "")
+        self.assertEqual(material.original_source_url, "")

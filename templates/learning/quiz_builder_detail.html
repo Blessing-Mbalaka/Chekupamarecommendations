@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}Edit {{ quiz.title }} · Quiz Builder{% endblock %}
+
+{% block content %}
+<section class="panel quiz-hero">
+    <div>
+        <p class="eyebrow">{{ quiz.course.code }} · Quiz Builder</p>
+        <h2>{{ quiz.title }}</h2>
+        <p class="muted">Choose AI-assisted generation or create questions manually. AI drafts cannot be published until a human reviews and saves them.</p>
+    </div>
+    <a class="secondary-button" href="{% url 'learning:quiz_take' quiz.pk %}">Preview as student</a>
+</section>
+
+<nav class="quiz-mode-switch" aria-label="Question creation mode">
+    <a href="?mode=ai{% if selected_material %}&material={{ selected_material.pk }}{% endif %}" class="{% if mode == 'ai' %}quiz-mode-switch--active{% endif %}">AI-assisted mode</a>
+    <a href="?mode=manual" class="{% if mode == 'manual' %}quiz-mode-switch--active{% endif %}">Manual mode</a>
+</nav>
+
+<section class="quiz-builder-grid">
+    <details class="panel" open>
+        <summary><strong>Quiz settings</strong></summary>
+        <form method="post" class="form-panel">
+            {% csrf_token %}<input type="hidden" name="action" value="update_quiz">
+            {{ quiz_form.as_p }}
+            <button class="primary-button" type="submit">Save settings</button>
+        </form>
+    </details>
+    {% if mode == "ai" %}
+        <article class="panel quiz-mode-panel">
+            <p class="eyebrow">AI-assisted mode</p>
+            <h3>Generate pre-filled question forms</h3>
+            <p class="muted">Select indexed material and a question style. The LLM fills the prompt, answers, explanation, points, and source. The first draft then opens as an editable form for human review.</p>
+            <form method="post" class="form-panel">
+                {% csrf_token %}<input type="hidden" name="action" value="generate_questions">
+                {{ generation_form.as_p }}
+                <button class="secondary-button" type="submit">Generate and review drafts</button>
+            </form>
+        </article>
+    {% else %}
+        <article class="panel quiz-mode-panel">
+            <p class="eyebrow">Manual mode</p>
+            <h3>Write the question yourself</h3>
+            <p class="muted">Use this mode only when you want to supply the prompt and marking answer manually.</p>
+            <form method="post" class="form-panel">
+                {% csrf_token %}<input type="hidden" name="action" value="add_question">
+                {{ question_form.as_p }}
+                <button class="primary-button" type="submit">Add reviewed question</button>
+            </form>
+        </article>
+    {% endif %}
+</section>
+
+<section class="panel">
+    <div class="curation-header"><div><p class="eyebrow">Question set</p><h3>{{ quiz.questions.count }} questions</h3></div></div>
+    <div class="quiz-question-list">
+        {% for question in quiz.questions.all %}
+            <article class="quiz-question-row">
+                <span class="external-result-number">{{ forloop.counter }}</span>
+                <div>
+                    <div class="source-title-row">
+                        <strong>{{ question.prompt }}</strong>
+                        {% if question.is_ai_generated %}<span class="origin-badge origin-badge--external">AI · {{ question.generation_backend }}</span>{% endif %}
+                        <span class="provider-badge provider-badge--{% if question.is_reviewed %}ok{% else %}manual_only{% endif %}">{% if question.is_reviewed %}Human reviewed{% else %}Review required{% endif %}</span>
+                    </div>
+                    <p class="muted">{{ question.get_question_type_display }} · {{ question.points }} point{{ question.points|pluralize }}{% if question.source_material %} · {{ question.source_material.title }}{% endif %}</p>
+                    <div class="button-row">
+                        <a class="ghost-button" href="{% url 'learning:quiz_question_edit' quiz.pk question.pk %}">Edit question</a>
+                        <form method="post">{% csrf_token %}<input type="hidden" name="action" value="delete_question"><input type="hidden" name="question_id" value="{{ question.pk }}"><button class="ghost-button" type="submit">Remove</button></form>
+                    </div>
+                </div>
+            </article>
+        {% empty %}<p class="muted">No questions yet. Add one manually or generate drafts above.</p>{% endfor %}
+    </div>
+</section>
+{% endblock %}

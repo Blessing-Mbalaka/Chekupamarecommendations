@@ -12,7 +12,12 @@
         <div><strong>Type</strong><span>{{ material.get_source_type_display }}</span></div>
         <div><strong>Tags</strong><span>{{ material.tags|default:"None" }}</span></div>
         <div><strong>Provider</strong><span>{{ material.source_provider|default:"Not set" }}</span></div>
-        <div><strong>Endpoint</strong><span>{{ material.source_endpoint|default:"Internal upload flow" }}</span></div>
+        <div><strong>Authors</strong><span>{{ material.authors|default:"Not supplied" }}</span></div>
+        <div><strong>Publication</strong><span>{{ material.journal_name|default:material.publisher|default:"Not supplied" }}</span></div>
+        <div><strong>Volume / issue</strong><span>{{ material.volume_issue|default:"Not supplied" }}</span></div>
+        <div><strong>DOI</strong><span>{{ material.doi|default:"Not supplied" }}</span></div>
+        <div><strong>ISBN</strong><span>{{ material.isbn|default:"Not supplied" }}</span></div>
+        <div><strong>Source</strong><span>{% if material.source_origin == "internal" %}Prescribed material{% else %}{{ material.source_endpoint|default:"Additional material" }}{% endif %}</span></div>
         <div><strong>Record ID</strong><span>{{ material.source_record_id|default:"Stored file only" }}</span></div>
     </div>
     {% if material.source_citation %}
@@ -26,16 +31,37 @@
             <a class="secondary-button" href="{{ material.effective_source_url }}" target="_blank" rel="noreferrer">Open original source</a>
         {% endif %}
         <a class="ghost-button" href="{% url 'chatbot:chat' %}">Ask chatbot about this</a>
+        {% if can_build_quiz %}
+            <a class="primary-button" href="{% url 'learning:quiz_builder' %}?material={{ material.pk }}">Make a quiz from this</a>
+        {% endif %}
+        {% if can_fetch_transcript %}
+            <form method="post" action="{% url 'learning:material_serpapi_transcript' material.pk %}">
+                {% csrf_token %}
+                <button class="ghost-button" type="submit">{% if material.semantic_text %}Refresh{% else %}Fetch{% endif %} transcript with SerpApi</button>
+            </form>
+        {% endif %}
     </div>
-    {% if material.source_type == "video" and material.embed_url %}
+    {% if material.preview_kind == "video" and material.preview_url %}
         <div class="embed-shell">
             <h3>Embedded video</h3>
             <iframe
-                src="{{ material.embed_url }}"
+                src="{{ material.preview_url }}"
                 title="{{ material.youtube_title|default:material.title }}"
                 loading="lazy"
+                referrerpolicy="strict-origin-when-cross-origin"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                 allowfullscreen>
             </iframe>
+        </div>
+    {% elif material.preview_kind == "pdf" and material.preview_url %}
+        <div class="embed-shell">
+            <h3>PDF preview</h3>
+            <iframe
+                src="{{ material.preview_url }}#view=FitH&toolbar=1"
+                title="PDF preview: {{ material.title }}"
+                loading="lazy">
+            </iframe>
+            <p class="muted">If the publisher blocks embedded documents, use “Open original source” above.</p>
         </div>
     {% endif %}
 </article>

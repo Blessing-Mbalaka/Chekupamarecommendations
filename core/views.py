@@ -1,3 +1,6 @@
+import math
+from collections import Counter
+
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.http import HttpResponseForbidden
 from django.shortcuts import redirect, render
@@ -7,7 +10,7 @@ from analytics_app.models import AnalyticsEvent
 from chatbot.models import ChatMessage, ChatSession
 from core.services.health import chatbot_health_snapshot
 from learning.models import AssessmentAttempt, BaselineAssessment, Course, Material, Topic
-from learning.forms_curation import DiscoverySearchForm, MaterialUploadForm
+from learning.forms_curation import DiscoverySearchForm, MaterialUploadForm, TranscriptUploadForm, YouTubeResearchForm
 from learning.services.discovery import (
     REPUTABLE_PROVIDER_NAMES,
     curated_provider_health,
@@ -17,6 +20,14 @@ from learning.services.discovery import (
 )
 from recommendations.models import Recommendation
 from recommendations.services.presentation import unique_recommendations
+from ingestion.models import ContentChunk, ResearchRun, ResearchVideo
+from ingestion.services.vector_store import index_material
+from ingestion.services.youtube_research import (
+    YouTubeResearchError,
+    run_youtube_research,
+    store_serpapi_transcript,
+    store_uploaded_transcript,
+)
 
 
 def home_view(request):
@@ -67,6 +78,7 @@ def _superuser_required(user):
 def curation_portal_view(request):
     upload_form = MaterialUploadForm(prefix="upload")
     search_form = DiscoverySearchForm(prefix="discover")
+    youtube_form = YouTubeResearchForm(prefix="youtube")
     discovery_payload = request.session.get("curation_last_discovery")
     auto_fetch_ran = request.session.get("curation_autofetch_ran", False)
 
@@ -83,8 +95,56 @@ def curation_portal_view(request):
                 material.is_validated = True
                 material.uploaded_by = request.user
                 material.save()
-                messages.success(request, f"Uploaded material: {material.title}")
+                chunks = index_material(material) if material.file else []
+                if chunks:
+                    messages.success(request, f"Uploaded and indexed {material.title} ({len(chunks)} RAG chunks).")
+                else:
+                    messages.success(
+                        request,
+                        f"Stored {material.title}. It is discoverable, but needs an extractable file or transcript before it can ground chat answers.",
+                    )
                 return redirect("core:curation_portal")
+        elif action == "youtube_research":
+            youtube_form = YouTubeResearchForm(request.POST, prefix="youtube")
+            if youtube_form.is_valid():
+                try:
+                    run = run_youtube_research(created_by=request.user, **youtube_form.cleaned_data)
+                    messages.success(
+                        request,
+                        f"Collected {run.videos.count()} videos from the title-derived query. Upload transcripts to index them for RAG.",
+                    )
+                    return redirect(f"{request.path}?research_run={run.pk}#youtube-research")
+                except YouTubeResearchError as exc:
+                    messages.error(request, str(exc))
+                except Exception as exc:
+                    messages.error(request, f"YouTube research failed: {exc}")
+        elif action == "upload_transcript":
+            video = ResearchVideo.objects.select_related("run", "material").filter(pk=request.POST.get("video_id")).first()
+            transcript_form = TranscriptUploadForm(request.POST, request.FILES)
+            if not video:
+                messages.error(request, "That research video no longer exists.")
+            elif transcript_form.is_valid():
+                uploaded = transcript_form.cleaned_data.get("transcript_file")
+                raw_text = transcript_form.cleaned_data.get("transcript_text", "")
+                if uploaded:
+                    raw_text = uploaded.read().decode("utf-8", errors="replace")
+                try:
+                    store_uploaded_transcript(video, raw_text)
+                    messages.success(request, f"Transcript indexed for {video.title}.")
+                except YouTubeResearchError as exc:
+                    messages.error(request, str(exc))
+                return redirect(f"{request.path}?research_run={video.run_id}#youtube-research")
+        elif action == "fetch_serpapi_transcript":
+            video = ResearchVideo.objects.select_related("run", "material").filter(pk=request.POST.get("video_id")).first()
+            if not video:
+                messages.error(request, "That research video no longer exists.")
+            else:
+                try:
+                    store_serpapi_transcript(video)
+                    messages.success(request, f"SerpApi transcript fetched and indexed for {video.title}.")
+                except YouTubeResearchError as exc:
+                    messages.error(request, str(exc))
+                return redirect(f"{request.path}?research_run={video.run_id}#youtube-research")
         elif action == "search_discovery":
             search_form = DiscoverySearchForm(request.POST, prefix="discover")
             if search_form.is_valid():
@@ -155,12 +215,53 @@ def curation_portal_view(request):
         "external_materials": Material.objects.filter(source_origin=Material.SourceOrigin.EXTERNAL).count(),
         "internal_materials": Material.objects.filter(source_origin=Material.SourceOrigin.INTERNAL).count(),
         "questions_asked": ChatMessage.objects.filter(sender=ChatMessage.Sender.STUDENT).count(),
+        "rag_chunks": ContentChunk.objects.count(),
     }
     if discovery_payload:
         results = discovery_payload.get("results", [])
         curated_stats["discovery_results"] = len(results)
         curated_stats["pdf_ready"] = sum(1 for item in results if item.get("pdf_url"))
         curated_stats["pdf_missing"] = sum(1 for item in results if not item.get("pdf_url"))
+    selected_run_id = request.GET.get("research_run")
+    latest_research_run = (
+        ResearchRun.objects.prefetch_related("themes", "videos__themes")
+        .filter(pk=selected_run_id).first()
+        if selected_run_id
+        else ResearchRun.objects.prefetch_related("themes", "videos__themes").first()
+    )
+    theme_graph = []
+    if latest_research_run:
+        for theme in latest_research_run.themes.all():
+            theme_graph.append(
+                {
+                    "id": theme.pk,
+                    "label": theme.label,
+                    "keywords": ", ".join(theme.keywords),
+                    "x": theme.x,
+                    "y": theme.y,
+                    "radius": theme.radius,
+                    "video_count": theme.videos.count(),
+                }
+            )
+    indexed_materials = (
+        Material.objects.filter(content_chunks__isnull=False)
+        .select_related("course", "topic")
+        .prefetch_related("research_videos__themes")
+        .distinct()
+    )
+    library_labels = Counter(label for material in indexed_materials for label in (material.discovered_topics or [material.course.title]))
+    library_cluster_graph = []
+    for index, (label, material_count) in enumerate(library_labels.most_common(12)):
+        angle = (2 * math.pi * index) / max(1, len(library_labels))
+        library_cluster_graph.append(
+            {
+                "label": label,
+                "count": material_count,
+                "x": 50 + 29 * math.cos(angle),
+                "y": 50 + 29 * math.sin(angle),
+                "radius": min(35, 18 + material_count * 4),
+            }
+        )
     return render(
         request,
         "core/curation_portal.html",
@@ -173,5 +274,10 @@ def curation_portal_view(request):
             "auto_fetch_ran": auto_fetch_ran,
             "curated_stats": curated_stats,
             "discovery_total": discovery_total,
+            "youtube_form": youtube_form,
+            "latest_research_run": latest_research_run,
+            "theme_graph": theme_graph,
+            "transcript_form": TranscriptUploadForm(),
+            "library_cluster_graph": library_cluster_graph,
         },
     )

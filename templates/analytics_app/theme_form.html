@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block title %}{{ heading }} · UJ Learning Navigator{% endblock %}
+
+{% block content %}
+<section class="panel narrow-panel">
+    <p class="eyebrow">Question analytics</p>
+    <h2>{{ heading }}</h2>
+    <p class="muted">Use clear, reusable codes. You can revise model-generated labels and descriptions before using them in reports.</p>
+    <form method="post" class="form-panel">
+        {% csrf_token %}{{ form.as_p }}
+        <div class="button-row">
+            <button class="primary-button" type="submit">Save theme</button>
+            <a class="ghost-button" href="{% url 'analytics_app:questions' %}">Cancel</a>
+        </div>
+    </form>
+</section>
+{% endblock %}

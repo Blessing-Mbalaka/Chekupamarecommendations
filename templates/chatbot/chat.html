@@ -1,87 +1,197 @@
 {% extends "base.html" %}
 
-{% block content %}
-<section class="panel">
-    <p class="eyebrow">Chatbot</p>
-    <h2>Ask for personalized guidance</h2>
-    <p class="muted">The assistant blends your profile, baseline performance, and stored material when suggesting what to study next.</p>
-</section>
+{% block title %}UJ Study Assistant{% endblock %}
 
-<section class="chat-layout">
-    <div class="panel chat-thread">
-        {% for message in messages %}
-            <article class="chat-message chat-message--{{ message.sender }}">
-                <span>{{ message.get_sender_display }}</span>
-                <p>{{ message.content }}</p>
+{% block content %}
+<section class="chat-app" aria-label="UJ Study Assistant">
+    <header class="chat-app__header">
+        <div>
+            <p class="eyebrow">Grounded learning support</p>
+            <h2>UJ Study Assistant</h2>
+            <p>Answers come only from your indexed course library.</p>
+        </div>
+        <span class="rag-status"><i></i> RAG only</span>
+    </header>
+
+    <div class="chat-conversation" id="chat-conversation" aria-live="polite">
+        {% for message in chat_messages %}
+            <article class="conversation-turn conversation-turn--{{ message.sender }}">
+                <div class="conversation-avatar" aria-hidden="true">
+                    {% if message.sender == "student" %}{{ user.username|first|upper }}{% else %}UJ{% endif %}
+                </div>
+                <div class="conversation-body">
+                    <div class="conversation-meta">
+                        <strong>{% if message.sender == "student" %}You{% else %}UJ Study Assistant{% endif %}</strong>
+                        <time datetime="{{ message.created_at|date:'c' }}">{{ message.created_at|date:"H:i" }}</time>
+                    </div>
+                    <div class="conversation-copy">{{ message.content|linebreaksbr }}</div>
+
+                    {% if message.sender == "bot" and message.metadata.sources %}
+                        <div class="inline-sources">
+                            <div class="inline-sources__heading">
+                                <strong>Materials used</strong>
+                                <span>{{ message.metadata.sources|length }} grounded source{{ message.metadata.sources|length|pluralize }}</span>
+                            </div>
+                            {% for source in message.metadata.sources %}
+                                <article class="source-preview source-preview--{{ source.preview_kind }}">
+                                    <div class="source-preview__meta">
+                                        <span class="source-number">{{ source.number }}</span>
+                                        <div>
+                                            <div class="source-title-row">
+                                                <strong>{{ source.title }}</strong>
+                                                <span class="origin-badge origin-badge--{{ source.origin }}">{{ source.origin_label }}</span>
+                                            </div>
+                                            <p>{{ source.provider|default:"UJ course library" }} · {{ source.preview_kind|title }} · {{ source.score }} match</p>
+                                            {% if source.authors or source.publication %}<p>{{ source.authors }}{% if source.authors and source.publication %} · {% endif %}{{ source.publication }}</p>{% endif %}
+                                        </div>
+                                    </div>
+
+                                    {% if source.preview_kind == "video" and source.preview_url %}
+                                        <div class="media-frame media-frame--video">
+                                            <iframe
+                                                src="{{ source.preview_url }}"
+                                                title="Video preview: {{ source.title }}"
+                                                loading="lazy"
+                                                referrerpolicy="strict-origin-when-cross-origin"
+                                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                                allowfullscreen>
+                                            </iframe>
+                                        </div>
+                                    {% elif source.preview_kind == "pdf" and source.preview_url %}
+                                        <div class="media-frame media-frame--pdf">
+                                            <iframe
+                                                src="{{ source.preview_url }}#view=FitH&toolbar=1"
+                                                title="PDF preview: {{ source.title }}"
+                                                loading="lazy">
+                                            </iframe>
+                                        </div>
+                                    {% else %}
+                                        <div class="link-preview">
+                                            <span class="link-preview__icon" aria-hidden="true">↗</span>
+                                            <p>This provider page cannot be guaranteed to allow secure iframe embedding. Open it in a new tab.</p>
+                                        </div>
+                                    {% endif %}
+
+                                    {% if source.topics %}
+                                        <div class="source-topics">
+                                            {% for topic in source.topics %}<span>{{ topic }}</span>{% endfor %}
+                                        </div>
+                                    {% endif %}
+                                    <div class="source-actions">
+                                        <a href="{{ source.url }}" class="text-link">View library record</a>
+                                        {% if source.external_url %}
+                                            <a href="{{ source.external_url }}" target="_blank" rel="noopener noreferrer" class="text-link">Open original ↗</a>
+                                        {% endif %}
+                                    </div>
+                                </article>
+                            {% endfor %}
+                        </div>
+                    {% elif message.sender == "bot" and message.metadata.rag_only and not message.metadata.grounded %}
+                        <div class="grounding-notice">No indexed source matched, so no outside knowledge was used.</div>
+                    {% endif %}
+
+                    {% if message.sender == "bot" and message.metadata.external_suggestions %}
+                        <div class="inline-sources external-suggestions">
+                            <div class="inline-sources__heading">
+                                <strong>Additional learning material</strong>
+                                <span>Optional and ungraded — explore these resources to deepen your understanding.</span>
+                            </div>
+                            <div class="external-result-list">
+                                {% for source in message.metadata.external_suggestions %}
+                                    <article class="external-result-bubble">
+                                        <span class="external-result-number">{{ source.number }}</span>
+                                        <div class="external-result-content">
+                                            <div class="source-title-row">
+                                                <strong>{{ source.title }}</strong>
+                                                <span class="origin-badge origin-badge--external">Additional material</span>
+                                            </div>
+                                            <p>{{ source.provider|default:"External provider" }} · {{ source.source_type }}</p>
+                                            {% if source.authors or source.publication %}<p>{{ source.authors }}{% if source.authors and source.publication %} · {% endif %}{{ source.publication }}</p>{% endif %}
+                                            <div class="source-actions">
+                                                {% if source.external_url %}<a href="{{ source.external_url }}" target="_blank" rel="noopener noreferrer" class="text-link">Visit source</a>{% endif %}
+                                                {% if source.preview_kind == "pdf" and source.preview_url %}<a href="{{ source.preview_url }}" target="_blank" rel="noopener noreferrer" class="text-link">View / download PDF</a>{% endif %}
+                                                <a href="{{ source.url }}" class="text-link">Library record</a>
+                                            </div>
+                                            {% if source.preview_url %}
+                                                <details class="external-inline-preview">
+                                                    <summary>Preview here</summary>
+                                                    <div class="media-frame media-frame--{{ source.preview_kind }}">
+                                                        <iframe
+                                                            src="{{ source.preview_url }}{% if source.preview_kind == 'pdf' %}#view=FitH&toolbar=1{% endif %}"
+                                                            title="Preview: {{ source.title }}"
+                                                            loading="lazy"
+                                                            referrerpolicy="strict-origin-when-cross-origin"
+                                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                                            allowfullscreen>
+                                                        </iframe>
+                                                    </div>
+                                                </details>
+                                            {% endif %}
+                                        </div>
+                                    </article>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endif %}
+
+                    {% if message.sender == "bot" and message.metadata.provider_statuses %}
+                        <details class="provider-trace">
+                            <summary>Academic API discovery</summary>
+                            <div class="provider-trace__items">
+                                {% for provider in message.metadata.provider_statuses %}
+                                    <span class="provider-badge provider-badge--{{ provider.status }}" title="{{ provider.message }}">{{ provider.name }}: {{ provider.count }}</span>
+                                {% endfor %}
+                            </div>
+                            <p>Discovery results are external suggestions only. They become answer evidence after full text is uploaded and indexed.</p>
+                        </details>
+                    {% endif %}
+                </div>
             </article>
         {% empty %}
-            <p class="muted">Start the conversation with a question like "What should I revise first for calculus?"</p>
+            <div class="chat-empty">
+                <span class="chat-empty__mark">UJ</span>
+                <h3>What would you like to understand?</h3>
+                <p>Ask about your course materials, request a simpler explanation, or ask what to study next.</p>
+                <div class="prompt-suggestions">
+                    <button type="button" data-prompt="What should I revise first?">What should I revise first?</button>
+                    <button type="button" data-prompt="Explain the key ideas in simple terms.">Explain this simply</button>
+                    <button type="button" data-prompt="Which indexed material should I open next?">Choose my next material</button>
+                </div>
+            </div>
         {% endfor %}
     </div>
-    <div class="panel">
-        <form method="post" class="form-panel">
-            {% csrf_token %}
-            {{ form.as_p }}
-            <button type="submit" class="primary-button">Send</button>
-        </form>
-        {% if latest_bot_message and latest_bot_message.metadata %}
-            <div class="provider-panel">
-                <h3>Search orchestration</h3>
-                <p><strong>Refined query:</strong> {{ latest_bot_message.metadata.refined_query }}</p>
-                <p><strong>LLM backend:</strong> {{ latest_bot_message.metadata.response_backend }}</p>
-                <div class="provider-badges">
-                    {% for provider in latest_bot_message.metadata.provider_statuses %}
-                        <span class="provider-badge provider-badge--{{ provider.status }}">
-                            {{ provider.name }}: {{ provider.status }}
-                        </span>
-                    {% endfor %}
-                </div>
-                {% if latest_bot_message.metadata.ollama_status.ollama_models %}
-                    <p><strong>Ollama fallbacks:</strong> {{ latest_bot_message.metadata.ollama_status.ollama_models|join:", " }}</p>
-                {% elif latest_bot_message.metadata.ollama_status.ollama %}
-                    <p><strong>Ollama fallbacks:</strong> available</p>
-                {% endif %}
-                {% if latest_bot_message.metadata.similar_questions %}
-                    <div class="similar-questions-block">
-                        <h4>Close existing questions</h4>
-                        {% for item in latest_bot_message.metadata.similar_questions %}
-                            <p><strong>{{ item.kind|title }}</strong>: {{ item.text }} <span class="muted">match {{ item.score }}</span></p>
-                        {% endfor %}
-                    </div>
-                {% endif %}
-            </div>
-        {% endif %}
-        <div class="recommendation-bubble-wrap">
-            <h3>Recommended now</h3>
-            {% for recommendation in recommendations %}
-                <article class="recommendation-bubble">
-                    <div>
-                        <strong>{{ recommendation.material.title }}</strong>
-                        <p>
-                            {{ recommendation.material.source_bucket }} |
-                            {{ recommendation.material.get_source_type_display }}
-                            {% if recommendation.material.source_provider %}
-                                | {{ recommendation.material.source_provider }}
-                            {% endif %}
-                        </p>
-                        {% if recommendation.material.source_endpoint %}
-                            <p>Endpoint: {{ recommendation.material.source_endpoint }}</p>
-                        {% endif %}
-                    </div>
-                    <div class="button-stack">
-                        <a class="secondary-button" href="{{ recommendation.material.get_absolute_url }}">View</a>
-                        {% if recommendation.material.file %}
-                            <a class="ghost-button" href="{{ recommendation.material.file.url }}">Team copy</a>
-                        {% endif %}
-                        {% if recommendation.material.external_url %}
-                            <a class="ghost-button" href="{{ recommendation.material.external_url }}" target="_blank" rel="noreferrer">Original source</a>
-                        {% endif %}
-                    </div>
-                </article>
-            {% empty %}
-                <p class="muted">Your recommendation bubble will appear here after the chatbot replies.</p>
-            {% endfor %}
-        </div>
-    </div>
+
+    <form method="post" class="chat-composer" id="chat-form">
+        {% csrf_token %}
+        <label class="sr-only" for="{{ form.message.id_for_label }}">Message</label>
+        {{ form.message }}
+        <button type="submit" class="chat-send" aria-label="Send message">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.4 20.4 22 12 3.4 3.6 3 10l12 2-12 2z"/></svg>
+        </button>
+        <p>UJ Study Assistant can make mistakes. Verify important information against the cited material.</p>
+    </form>
 </section>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    (() => {
+        const conversation = document.getElementById("chat-conversation");
+        const form = document.getElementById("chat-form");
+        const input = form?.querySelector("textarea");
+        if (conversation) conversation.scrollTop = conversation.scrollHeight;
+        input?.addEventListener("keydown", (event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                if (input.value.trim()) form.requestSubmit();
+            }
+        });
+        document.querySelectorAll("[data-prompt]").forEach((button) => {
+            button.addEventListener("click", () => {
+                input.value = button.dataset.prompt;
+                input.focus();
+            });
+        });
+    })();
+</script>
 {% endblock %}

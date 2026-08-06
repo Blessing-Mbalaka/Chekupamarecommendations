@@ -5,19 +5,24 @@ An API-first Django learning support platform with:
 - personalized student profiles and free-text learning challenges
 - baseline assessments authored by lecturers
 - uploaded and external learning materials
-- a chatbot that can use Gemini when configured
+- a retrieval-only chatbot grounded in stored vector chunks
 - recommendation bubbles linked to validated materials
 - analytics for page views, clicks, material views, and dwell time
 
 ## Current Capabilities
 
 - Login flow and role-aware navigation
+- UJ-branded responsive interface using the official open-access university logo
 - Student profile management with large free-text `challenges`
 - Course, topic, material, baseline assessment, and lecturer prompt models
 - Internal vs external material separation
 - Original source storage metadata for external resources
 - Chat persistence with personalized recommendation responses
-- Gemini integration hooks for text generation and embeddings
+- YouTube title-derived research with top-video metadata collection
+- Manual transcript upload/paste, cleaning, chunking, and embedding
+- Single-surface ChatGPT-style conversation with inline YouTube/PDF source previews
+- LDA/optional BERTopic theme extraction with overlapping cluster visualization
+- Gemini integration hooks for grounded generation and embeddings
 - Fallback rule-based recommendations when Gemini is not configured
 - Analytics tracking middleware and event endpoint
 - Django admin support for managing users, courses, materials, ingestion, and analytics
@@ -55,8 +60,17 @@ The chat request path is intentionally kept fast:
 - Crossref: free and useful for DOI and paper metadata lookup.
 - Semantic Scholar: useful for paper discovery; an API key is optional for low-volume usage but worth supporting.
 - Springer Nature: supported as an external provider using `api.springernature.com` endpoints. Current official docs show `meta/v2`, `metadata`, `openaccess`, and full-text/TDM paths under that host.
-- Google Scholar (SerpApi): supported as an optional curated source using SerpApi's `engine=google_scholar` endpoint. As of July 29, 2026, SerpApi documents the endpoint as `https://serpapi.com/search?engine=google_scholar`, with free-tier and paid usage plans depending on quota.
-- YouTube: this app currently treats YouTube as manual-only. Known URLs can be stored and embedded without using the YouTube Data API.
+- Google Scholar (SerpApi): supported through the maintained `serpapi` Python SDK using `engine=google_scholar`. Set `SERPAPI_API_KEY` (or `SERPAPI_KEY`); chat displays every fetched result as a numbered external link while keeping it outside answer evidence until full text is indexed.
+- SerpApi YouTube fallback: when configured, `engine=youtube` can supply video discovery and `engine=youtube_video_transcript` can fetch English transcripts for existing or newly researched videos. Teaching staff must trigger transcript ingestion; successful transcripts are indexed into RAG with provider provenance.
+
+## Quiz workflow
+
+- Lecturers, teaching assistants, and administrators have a dedicated Quiz Builder.
+- Questions can be created manually or generated as editable JSON drafts from selected indexed course materials.
+- AI drafts are labelled with their generation backend and must be reviewed before publishing.
+- Students can take published quizzes assigned to their enrolled courses and receive question-level results.
+- Quiz attempts and answers are persisted separately from baseline assessments.
+- YouTube: set `YOUTUBE_API_KEY` to resolve a seed title, search related videos, and store metadata. Transcript ingestion remains manual by design; metadata-only videos are excluded from chatbot RAG.
 - Scopus: usually commercial or institution-gated, so I have left it as a future connector rather than a default path.
 
 ## Run Locally

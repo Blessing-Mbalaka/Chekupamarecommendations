@@ -136,10 +136,17 @@ STATICFILES_DIRS = [BASE_DIR / 'static']
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+CACHE_BACKEND = os.getenv('DJANGO_CACHE_BACKEND', 'django.core.cache.backends.filebased.FileBasedCache')
+if CACHE_BACKEND == 'django.core.cache.backends.locmem.LocMemCache':
+    CACHE_LOCATION = os.getenv('DJANGO_CACHE_LOCATION', 'recommendation-engine-cache')
+else:
+    CACHE_LOCATION = os.getenv('DJANGO_CACHE_LOCATION', str(BASE_DIR / '.cache' / 'django'))
+    Path(CACHE_LOCATION).mkdir(parents=True, exist_ok=True)
+
 CACHES = {
     'default': {
-        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-        'LOCATION': 'recommendation-engine-cache',
+        'BACKEND': CACHE_BACKEND,
+        'LOCATION': CACHE_LOCATION,
     }
 }
 
@@ -152,6 +159,10 @@ LOGIN_URL = 'login'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# The app remains non-frameable by default. The PDF proxy opts into SAMEORIGIN
+# narrowly at view level for inline course-document previews.
+X_FRAME_OPTIONS = 'DENY'
 
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
 GEMINI_TEXT_MODEL = os.getenv('GEMINI_TEXT_MODEL', 'gemini-3.6-flash')

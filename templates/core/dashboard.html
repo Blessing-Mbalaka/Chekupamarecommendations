@@ -24,52 +24,202 @@
 </section>
 
 <section class="card-grid">
-    <article class="panel">
-        <h3>Recommended for you</h3>
+    <article class="panel dashboard-recommendations dashboard-flip-section">
+        <div class="dashboard-recommendations__heading">
+            <div>
+                <p class="eyebrow">Your study picks</p>
+                <h3>Recommended for you</h3>
+            </div>
+            {% if recommendations %}<span>Click a card to reveal your options</span>{% endif %}
+        </div>
         {% if recommendations %}
-            {% for recommendation in recommendations %}
-                <a class="list-link" href="{{ recommendation.material.get_absolute_url }}">
-                    {{ recommendation.material.title }}
-                </a>
-            {% endfor %}
+            <div class="recommendation-flip-grid">
+                {% for recommendation in recommendations %}
+                    <article class="recommendation-flip recommendation-flip--hint" data-flip-card style="--flip-delay: {{ forloop.counter0 }}00ms;">
+                        <div class="recommendation-flip__inner">
+                            <section class="recommendation-flip__face recommendation-flip__front">
+                                <div class="recommendation-flip__topline">
+                                    <span class="recommendation-flip__number">0{{ forloop.counter }}</span>
+                                    <span class="recommendation-flip__course">{{ recommendation.material.course.code }}</span>
+                                </div>
+                                <div>
+                                    <p class="recommendation-flip__label">Recommended resource</p>
+                                    <h4>{{ recommendation.material.title }}</h4>
+                                    <p>{{ recommendation.reason|default:"Selected to support your current learning goals."|truncatechars:115 }}</p>
+                                </div>
+                                <button class="recommendation-flip__toggle" type="button" data-flip-toggle aria-expanded="false">
+                                    View options <span aria-hidden="true">↻</span>
+                                </button>
+                            </section>
+                            <section class="recommendation-flip__face recommendation-flip__back" aria-hidden="true" inert>
+                                <div>
+                                    <p class="recommendation-flip__label">Choose your next step</p>
+                                    <h4>{{ recommendation.material.title }}</h4>
+                                    <span class="recommendation-flip__source">{{ recommendation.material.source_bucket }}</span>
+                                </div>
+                                <div class="recommendation-flip__actions">
+                                    <a href="{{ recommendation.material.get_absolute_url }}">Open material <span aria-hidden="true">→</span></a>
+                                    <a href="{% url 'chatbot:chat' %}">Study with assistant <span aria-hidden="true">→</span></a>
+                                    <a href="{% url 'learning:material_list' %}">Browse the library <span aria-hidden="true">→</span></a>
+                                </div>
+                                <button class="recommendation-flip__toggle recommendation-flip__toggle--back" type="button" data-flip-toggle aria-expanded="true">
+                                    Back to summary <span aria-hidden="true">↻</span>
+                                </button>
+                            </section>
+                        </div>
+                    </article>
+                {% endfor %}
+            </div>
         {% else %}
             <p class="muted">Start a chat or complete a baseline assessment to generate personalized recommendations.</p>
         {% endif %}
     </article>
 
-    <article class="panel">
-        <h3>Available materials</h3>
-        {% for material in materials %}
-            <a class="list-link" href="{{ material.get_absolute_url }}">
-                {{ material.title }} <span>{{ material.course.code }}</span>
-            </a>
-        {% empty %}
-            <p class="muted">Validated materials will appear here after lecturer upload and review.</p>
-        {% endfor %}
-    </article>
-
-    <article class="panel">
-        <h3>Baseline assessments</h3>
-        {% for assessment in assessments %}
-            <a class="list-link" href="{% url 'learning:assessment_detail' assessment.pk %}">
-                {{ assessment.title }} <span>{{ assessment.course.code }}</span>
-            </a>
-        {% empty %}
-            <p class="muted">No baseline assessments are active yet.</p>
-        {% endfor %}
-    </article>
-
-    <article class="panel">
-        <h3>Courses</h3>
-        {% for course in courses %}
-            <div class="list-link list-link--static">
-                {{ course.title }} <span>{{ course.code }}</span>
+    <article class="panel dashboard-flip-section">
+        <div class="dashboard-recommendations__heading">
+            <div>
+                <p class="eyebrow">Your library</p>
+                <h3>Available materials</h3>
             </div>
-        {% empty %}
-            <p class="muted">Courses will appear once they are configured by lecturers.</p>
-        {% endfor %}
+            {% if materials %}<span>Click a card to reveal your options</span>{% endif %}
+        </div>
+        {% if materials %}
+            <div class="recommendation-flip-grid">
+                {% for material in materials %}
+                    <article class="recommendation-flip recommendation-flip--hint" data-flip-card style="--flip-delay: {{ forloop.counter0 }}00ms;">
+                        <div class="recommendation-flip__inner">
+                            <section class="recommendation-flip__face recommendation-flip__front">
+                                <div class="recommendation-flip__topline">
+                                    <span class="recommendation-flip__number">0{{ forloop.counter }}</span>
+                                    <span class="recommendation-flip__course">{{ material.course.code }}</span>
+                                </div>
+                                <div>
+                                    <p class="recommendation-flip__label">Available material</p>
+                                    <h4>{{ material.title }}</h4>
+                                    <p>{{ material.get_source_type_display }} · {{ material.source_bucket }}</p>
+                                </div>
+                                <button class="recommendation-flip__toggle" type="button" data-flip-toggle aria-expanded="false">
+                                    View options <span aria-hidden="true">↻</span>
+                                </button>
+                            </section>
+                            <section class="recommendation-flip__face recommendation-flip__back" aria-hidden="true" inert>
+                                <div>
+                                    <p class="recommendation-flip__label">Choose your next step</p>
+                                    <h4>{{ material.title }}</h4>
+                                    <span class="recommendation-flip__source">{{ material.source_bucket }}</span>
+                                </div>
+                                <div class="recommendation-flip__actions">
+                                    <a href="{{ material.get_absolute_url }}">Open material <span aria-hidden="true">→</span></a>
+                                    <a href="{% url 'chatbot:chat' %}">Study with assistant <span aria-hidden="true">→</span></a>
+                                    <a href="{% url 'learning:material_list' %}">Browse the library <span aria-hidden="true">→</span></a>
+                                </div>
+                                <button class="recommendation-flip__toggle recommendation-flip__toggle--back" type="button" data-flip-toggle aria-expanded="true">
+                                    Back to summary <span aria-hidden="true">↻</span>
+                                </button>
+                            </section>
+                        </div>
+                    </article>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="muted">Validated materials will appear here after lecturer upload and review.</p>
+        {% endif %}
     </article>
-    <article class="panel">
+
+    <article class="panel dashboard-flip-section">
+        <div class="dashboard-recommendations__heading">
+            <div>
+                <p class="eyebrow">Check your starting point</p>
+                <h3>Baseline assessments</h3>
+            </div>
+            {% if assessments %}<span>Click a card to reveal your options</span>{% endif %}
+        </div>
+        {% if assessments %}
+            <div class="recommendation-flip-grid">
+                {% for assessment in assessments %}
+                    <article class="recommendation-flip recommendation-flip--hint" data-flip-card style="--flip-delay: {{ forloop.counter0 }}00ms;">
+                        <div class="recommendation-flip__inner">
+                            <section class="recommendation-flip__face recommendation-flip__front">
+                                <div class="recommendation-flip__topline">
+                                    <span class="recommendation-flip__number">0{{ forloop.counter }}</span>
+                                    <span class="recommendation-flip__course">{{ assessment.course.code }}</span>
+                                </div>
+                                <div>
+                                    <p class="recommendation-flip__label">Baseline assessment</p>
+                                    <h4>{{ assessment.title }}</h4>
+                                    <p>Measure your current understanding and identify the best place to begin.</p>
+                                </div>
+                                <button class="recommendation-flip__toggle" type="button" data-flip-toggle aria-expanded="false">View options <span aria-hidden="true">↻</span></button>
+                            </section>
+                            <section class="recommendation-flip__face recommendation-flip__back" aria-hidden="true" inert>
+                                <div>
+                                    <p class="recommendation-flip__label">Ready when you are</p>
+                                    <h4>{{ assessment.title }}</h4>
+                                    <span class="recommendation-flip__source">{{ assessment.course.code }}</span>
+                                </div>
+                                <div class="recommendation-flip__actions">
+                                    <a href="{% url 'learning:assessment_detail' assessment.pk %}">Start assessment <span aria-hidden="true">→</span></a>
+                                    <a href="{% url 'learning:quiz_list' %}">Open practice quizzes <span aria-hidden="true">→</span></a>
+                                    <a href="{% url 'accounts:profile' %}">Review learning profile <span aria-hidden="true">→</span></a>
+                                </div>
+                                <button class="recommendation-flip__toggle recommendation-flip__toggle--back" type="button" data-flip-toggle aria-expanded="true">Back to summary <span aria-hidden="true">↻</span></button>
+                            </section>
+                        </div>
+                    </article>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="muted">No baseline assessments are active yet.</p>
+        {% endif %}
+    </article>
+
+    <article class="panel dashboard-flip-section">
+        <div class="dashboard-recommendations__heading">
+            <div>
+                <p class="eyebrow">Your learning path</p>
+                <h3>Courses</h3>
+            </div>
+            {% if courses %}<span>Click a card to reveal your options</span>{% endif %}
+        </div>
+        {% if courses %}
+            <div class="recommendation-flip-grid">
+                {% for course in courses %}
+                    <article class="recommendation-flip recommendation-flip--hint" data-flip-card style="--flip-delay: {{ forloop.counter0 }}00ms;">
+                        <div class="recommendation-flip__inner">
+                            <section class="recommendation-flip__face recommendation-flip__front">
+                                <div class="recommendation-flip__topline">
+                                    <span class="recommendation-flip__number">0{{ forloop.counter }}</span>
+                                    <span class="recommendation-flip__course">{{ course.code }}</span>
+                                </div>
+                                <div>
+                                    <p class="recommendation-flip__label">Course</p>
+                                    <h4>{{ course.title }}</h4>
+                                    <p>{{ course.description|default:"Open the library or ask the study assistant for a guided next step."|truncatechars:140 }}</p>
+                                </div>
+                                <button class="recommendation-flip__toggle" type="button" data-flip-toggle aria-expanded="false">View options <span aria-hidden="true">↻</span></button>
+                            </section>
+                            <section class="recommendation-flip__face recommendation-flip__back" aria-hidden="true" inert>
+                                <div>
+                                    <p class="recommendation-flip__label">Continue this course</p>
+                                    <h4>{{ course.title }}</h4>
+                                    <span class="recommendation-flip__source">{{ course.code }}</span>
+                                </div>
+                                <div class="recommendation-flip__actions">
+                                    <a href="{% url 'learning:material_list' %}">Browse course materials <span aria-hidden="true">→</span></a>
+                                    <a href="{% url 'chatbot:chat' %}">Ask the study assistant <span aria-hidden="true">→</span></a>
+                                    <a href="{% url 'learning:quiz_list' %}">Open practice quizzes <span aria-hidden="true">→</span></a>
+                                </div>
+                                <button class="recommendation-flip__toggle recommendation-flip__toggle--back" type="button" data-flip-toggle aria-expanded="true">Back to summary <span aria-hidden="true">↻</span></button>
+                            </section>
+                        </div>
+                    </article>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="muted">Courses will appear once they are configured by lecturers.</p>
+        {% endif %}
+    </article>
+    <article class="panel dashboard-static-tile">
         <h3>Next action</h3>
         <p class="muted">A strong first setup is to complete your profile challenges and then ask the chatbot what to study first.</p>
         <div class="button-row">
@@ -90,4 +240,64 @@
         </article>
     {% endif %}
 </section>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    (() => {
+        const cards = document.querySelectorAll("[data-flip-card]");
+
+        const setFlipped = (card, flipped) => {
+            card.classList.remove("recommendation-flip--hint", "is-hinting");
+            card.classList.toggle("is-flipped", flipped);
+            const front = card.querySelector(".recommendation-flip__front");
+            const back = card.querySelector(".recommendation-flip__back");
+            front.setAttribute("aria-hidden", String(flipped));
+            back.setAttribute("aria-hidden", String(!flipped));
+            front.toggleAttribute("inert", flipped);
+            back.toggleAttribute("inert", !flipped);
+            card.querySelectorAll("[data-flip-toggle]").forEach((button) => {
+                button.setAttribute("aria-expanded", String(flipped));
+            });
+            if (flipped) {
+                back.querySelector("a")?.focus({ preventScroll: true });
+            } else {
+                front.querySelector("[data-flip-toggle]")?.focus({ preventScroll: true });
+            }
+        };
+
+        cards.forEach((card) => {
+            card.addEventListener("click", (event) => {
+                if (event.target.closest("a")) return;
+                setFlipped(card, !card.classList.contains("is-flipped"));
+            });
+        });
+
+        const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        if (reducedMotion) {
+            cards.forEach((card) => card.classList.remove("recommendation-flip--hint"));
+        } else {
+            const playHint = (card) => {
+                if (!card.classList.contains("recommendation-flip--hint")) return;
+                card.classList.add("is-hinting");
+                card.querySelector(".recommendation-flip__inner")?.addEventListener("animationend", () => {
+                    card.classList.remove("recommendation-flip--hint", "is-hinting");
+                }, { once: true });
+            };
+
+            if ("IntersectionObserver" in window) {
+                const observer = new IntersectionObserver((entries) => {
+                    entries.forEach((entry) => {
+                        if (!entry.isIntersecting) return;
+                        observer.unobserve(entry.target);
+                        playHint(entry.target);
+                    });
+                }, { threshold: 0.35 });
+                cards.forEach((card) => observer.observe(card));
+            } else {
+                cards.forEach(playHint);
+            }
+        }
+    })();
+</script>
 {% endblock %}

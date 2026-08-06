@@ -1,10 +1,12 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Recommendation Engine</title>
-    <link rel="stylesheet" href="/static/css/app.css">
+    <title>{% block title %}UJ Learning Navigator{% endblock %}</title>
+    <meta name="theme-color" content="#ef5b21">
+    <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260806-14">
 </head>
 <body data-track-path="{{ request.path }}">
     <div class="shell {% if not user.is_authenticated %}shell--public{% endif %}">
@@ -12,10 +14,17 @@
             <aside class="sidebar">
                 <div class="sidebar-inner">
                     <div class="sidebar-brand">
-                        <p class="eyebrow">Learning Platform</p>
-                        <h1>Recommendation Engine</h1>
-                        <p class="muted">{{ user.get_full_name|default:user.username }}</p>
-                        <span class="role-pill">{{ user.get_role_display }}</span>
+                        <a href="{% url 'core:dashboard' %}" class="uj-brand" aria-label="UJ Learning Navigator home">
+                            <img src="{% static 'img/uj-logo.png' %}" alt="University of Johannesburg">
+                            <span>Learning Navigator</span>
+                        </a>
+                        <div class="sidebar-user">
+                            <span class="user-avatar">{{ user.username|first|upper }}</span>
+                            <div>
+                                <strong>{{ user.get_full_name|default:user.username }}</strong>
+                                <span>{{ user.get_role_display }}</span>
+                            </div>
+                        </div>
                     </div>
                     <nav class="nav-links">
                         <a href="{% url 'core:dashboard' %}" class="nav-link {% if request.path == '/dashboard/' %}nav-link--active{% endif %}">
@@ -30,11 +39,17 @@
                             </span>
                             <span>Profile</span>
                         </a>
-                        <a href="{% url 'learning:material_list' %}" class="nav-link {% if request.path|slice:':10' == '/learning/' %}nav-link--active{% endif %}">
+                        <a href="{% url 'learning:material_list' %}" class="nav-link {% if '/learning/materials/' in request.path %}nav-link--active{% endif %}">
                             <span class="nav-icon" aria-hidden="true">
                                 <svg viewBox="0 0 24 24" focusable="false"><path d="M4 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4zm2 2v12h12V6zm14 1 2 1v11a2 2 0 0 1-2 2h-1V7z"/></svg>
                             </span>
                             <span>Materials</span>
+                        </a>
+                        <a href="{% url 'learning:quiz_list' %}" class="nav-link {% if '/learning/quizzes/' in request.path %}nav-link--active{% endif %}">
+                            <span class="nav-icon" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" focusable="false"><path d="M5 3h14v18H5zm3 4v2h8V7zm0 4v2h8v-2zm0 4v2h5v-2z"/></svg>
+                            </span>
+                            <span>{% if user.is_staff or user.role == 'lecturer' or user.role == 'ta' or user.role == 'admin' %}Quiz Builder{% else %}Quizzes{% endif %}</span>
                         </a>
                         <a href="{% url 'chatbot:chat' %}" class="nav-link {% if request.path|slice:':9' == '/chatbot/' %}nav-link--active{% endif %}">
                             <span class="nav-icon" aria-hidden="true">
@@ -43,6 +58,12 @@
                             <span>Chatbot</span>
                         </a>
                         {% if user.is_staff or user.role == 'lecturer' or user.role == 'ta' or user.role == 'admin' %}
+                            <a href="{% url 'analytics_app:questions' %}" class="nav-link {% if '/analytics/questions/' in request.path %}nav-link--active{% endif %}">
+                                <span class="nav-icon" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" focusable="false"><path d="M4 19h16v2H4zm1-2V9h3v8zm6 0V3h3v14zm6 0v-5h3v5z"/></svg>
+                                </span>
+                                <span>Question Analytics</span>
+                            </a>
                             <a href="{% url 'core:health' %}" class="nav-link {% if request.path == '/ops/health/' %}nav-link--active{% endif %}">
                                 <span class="nav-icon" aria-hidden="true">
                                     <svg viewBox="0 0 24 24" focusable="false"><path d="M13 3a9 9 0 1 0 8.95 10h-2.02A7 7 0 1 1 13 5zm1 0v6h6A7 7 0 0 0 14 3z"/></svg>
@@ -84,13 +105,21 @@
                 </div>
             </aside>
         {% endif %}
-        <main class="content {% if not user.is_authenticated %}content--full{% endif %}">
-            {% if messages %}
-                <div class="messages">
-                    {% for message in messages %}
-                        <div class="message">{{ message }}</div>
-                    {% endfor %}
-                </div>
+        <main class="content {% if not user.is_authenticated %}content--full{% endif %} {% if request.path|slice:':9' == '/chatbot/' %}content--chat{% endif %}">
+            {% if not user.is_authenticated %}
+                <a href="{% url 'core:home' %}" class="public-brand" aria-label="UJ Learning Navigator home">
+                    <img src="{% static 'img/uj-logo.png' %}" alt="University of Johannesburg">
+                    <span>Learning Navigator</span>
+                </a>
+            {% endif %}
+            {% if request.path|slice:':9' != '/chatbot/' %}
+                {% if messages %}
+                    <div class="messages">
+                        {% for message in messages %}
+                            <div class="message">{{ message }}</div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
             {% endif %}
             {% block content %}{% endblock %}
         </main>
@@ -139,5 +168,6 @@
             });
         </script>
     {% endif %}
+    {% block extra_scripts %}{% endblock %}
 </body>
 </html>

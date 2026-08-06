@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Quiz result · {{ attempt.quiz.title }}{% endblock %}
+{% block content %}
+<section class="panel quiz-result-hero"><p class="eyebrow">Quiz complete</p><h2>{{ attempt.quiz.title }}</h2><strong>{{ attempt.percentage }}%</strong><p>{{ attempt.score }} / {{ attempt.max_score }} points</p></section>
+<section class="panel quiz-question-list">
+    {% for answer in attempt.answers.all %}
+        <article class="quiz-question-row quiz-question-row--{% if answer.is_correct %}correct{% else %}incorrect{% endif %}">
+            <span class="external-result-number">{{ forloop.counter }}</span>
+            <div><strong>{{ answer.question.prompt }}</strong><p>Your answer: {{ answer.response }}</p><p><strong>{% if answer.is_correct %}Correct{% else %}Review needed{% endif %}</strong> · {{ answer.awarded_points }}/{{ answer.question.points }}</p>{% if answer.question.explanation %}<p class="muted">{{ answer.question.explanation }}</p>{% endif %}</div>
+        </article>
+    {% endfor %}
+    <a class="primary-button" href="{% url 'learning:quiz_list' %}">Back to quizzes</a>
+</section>
+{% endblock %}

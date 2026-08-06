@@ -32,6 +32,11 @@
         <strong>{{ curated_stats.questions_asked }}</strong>
         <p class="muted">Used to spot close semantic matches before creating new guidance.</p>
     </article>
+    <article class="stat-card">
+        <span class="eyebrow">RAG Index</span>
+        <strong>{{ curated_stats.rag_chunks }}</strong>
+        <p class="muted">Stored chunks the chatbot is allowed to answer from.</p>
+    </article>
     {% if discovery_payload %}
         <article class="stat-card">
             <span class="eyebrow">Discovery Results</span>
@@ -164,6 +169,96 @@
 </section>
 {% endif %}
 
+<section class="panel youtube-research" id="youtube-research">
+    <div class="curation-header">
+        <div>
+            <p class="eyebrow">YouTube research</p>
+            <h3>Title-derived topic collection</h3>
+            <p class="muted">Paste one YouTube URL. Its real title becomes the research query; top videos and metadata are collected. Transcripts stay manual and are the only YouTube text indexed for chatbot RAG.</p>
+        </div>
+        {% if latest_research_run %}<span class="result-pill">{{ latest_research_run.get_status_display }}</span>{% endif %}
+    </div>
+    <form method="post" class="form-panel form-grid">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="youtube_research">
+        {{ youtube_form.as_p }}
+        <div><button type="submit" class="primary-button">Research related videos</button></div>
+    </form>
+
+    {% if latest_research_run %}
+        <div class="research-summary">
+            <p><strong>Seed title:</strong> {{ latest_research_run.seed_title }}</p>
+            <p><strong>Derived research topic:</strong> {{ latest_research_run.research_query }}</p>
+            <p><strong>Topic model:</strong> {{ latest_research_run.topic_model|upper }} · {{ latest_research_run.videos.count }} videos</p>
+        </div>
+        {% if theme_graph %}
+            <div class="topic-map" aria-label="Overlapping topic cluster visualization">
+                <svg viewBox="0 0 100 100" role="img">
+                    {% for theme in theme_graph %}
+                        <g class="topic-cluster topic-cluster--{{ forloop.counter0|divisibleby:2|yesno:'warm,cool' }}">
+                            <circle cx="{{ theme.x }}" cy="{{ theme.y }}" r="{{ theme.radius }}"></circle>
+                            <text x="{{ theme.x }}" y="{{ theme.y }}" text-anchor="middle">{{ theme.label|truncatechars:24 }}</text>
+                            <title>{{ theme.label }}: {{ theme.keywords }} ({{ theme.video_count }} videos)</title>
+                        </g>
+                    {% endfor %}
+                </svg>
+                <p class="muted">Circles intentionally overlap. A video can belong to several themes when its topic weights cross the membership threshold.</p>
+            </div>
+        {% endif %}
+        <div class="research-video-grid">
+            {% for video in latest_research_run.videos.all %}
+                <article class="research-video-card">
+                    {% if video.thumbnail_url %}<img src="{{ video.thumbnail_url }}" alt="" loading="lazy">{% endif %}
+                    <div>
+                        <span class="provider-badge provider-badge--{% if video.transcript %}ok{% else %}manual_only{% endif %}">
+                            {% if video.transcript %}RAG indexed{% else %}Transcript required{% endif %}
+                        </span>
+                        <h4>{{ video.title }}</h4>
+                        <p class="muted">{{ video.channel_title }}{% if video.duration %} · {{ video.duration }}{% endif %}</p>
+                        {% if video.themes.all %}<p class="theme-memberships">{% for theme in video.themes.all %}<span>{{ theme.label }}</span>{% endfor %}</p>{% endif %}
+                        <a class="ghost-button" href="https://www.youtube.com/watch?v={{ video.youtube_id }}" target="_blank" rel="noreferrer">Open video</a>
+                    </div>
+                    <form method="post" enctype="multipart/form-data" class="transcript-form">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="upload_transcript">
+                        <input type="hidden" name="video_id" value="{{ video.pk }}">
+                        <label>Transcript file <input type="file" name="transcript_file" accept=".txt,.vtt,.srt,text/plain"></label>
+                        <label>Or paste transcript <textarea name="transcript_text" rows="4"></textarea></label>
+                        <button type="submit" class="secondary-button">Clean and index transcript</button>
+                    </form>
+                    {% if not video.transcript %}
+                        <form method="post" class="transcript-api-form">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="fetch_serpapi_transcript">
+                            <input type="hidden" name="video_id" value="{{ video.pk }}">
+                            <button type="submit" class="ghost-button">Fetch transcript with SerpApi</button>
+                        </form>
+                    {% endif %}
+                </article>
+            {% endfor %}
+        </div>
+    {% endif %}
+</section>
+
+{% if library_cluster_graph %}
+<section class="panel youtube-research">
+    <p class="eyebrow">All indexed content</p>
+    <h3>Library topic overlap</h3>
+    <p class="muted">This map includes every material currently admitted to RAG. Multi-topic videos appear in more than one circle.</p>
+    <div class="topic-map">
+        <svg viewBox="0 0 100 100" role="img" aria-label="All indexed content topic overlap map">
+            {% for cluster in library_cluster_graph %}
+                <g class="topic-cluster topic-cluster--{{ forloop.counter0|divisibleby:2|yesno:'warm,cool' }}">
+                    <circle cx="{{ cluster.x }}" cy="{{ cluster.y }}" r="{{ cluster.radius }}"></circle>
+                    <text x="{{ cluster.x }}" y="{{ cluster.y }}" text-anchor="middle">{{ cluster.label|truncatechars:24 }}</text>
+                    <title>{{ cluster.label }}: {{ cluster.count }} indexed material{{ cluster.count|pluralize }}</title>
+                </g>
+            {% endfor %}
+        </svg>
+    </div>
+</section>
+{% endif %}
+
 <section class="feature-tile-grid">
     <details class="feature-tile" open>
         <summary>
@@ -173,11 +268,12 @@
             </div>
             <span class="feature-count">{{ curated_stats.internal_materials }}</span>
         </summary>
-        <p class="muted">Add internal documents, notes, or files that should remain in the team-owned library.</p>
-        <form method="post" enctype="multipart/form-data" class="form-panel">
+        <p class="muted">Add structured videos, journal articles, academic papers, books, blogs, notes, or files. Uploaded PDF, DOCX, and text content is extracted into the RAG index; links and publication metadata remain fully attributed.</p>
+        <form method="post" enctype="multipart/form-data" class="form-panel" id="material-upload-form">
             {% csrf_token %}
             <input type="hidden" name="action" value="upload_material">
             {{ upload_form.as_p }}
+            <p class="material-upload-requirements" id="material-upload-requirements" aria-live="polite"></p>
             <button type="submit" class="primary-button">Upload material</button>
         </form>
     </details>
@@ -245,4 +341,112 @@
         {% endfor %}
     </details>
 </section>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    (() => {
+        const form = document.getElementById("material-upload-form");
+        if (!form) return;
+
+        const fields = {
+            sourceType: document.getElementById("id_upload-source_type"),
+            file: document.getElementById("id_upload-file"),
+            url: document.getElementById("id_upload-external_url"),
+            previewUrl: document.getElementById("id_upload-source_preview_url"),
+            youtubeTitle: document.getElementById("id_upload-youtube_title"),
+            authors: document.getElementById("id_upload-authors"),
+            journal: document.getElementById("id_upload-journal_name"),
+            publisher: document.getElementById("id_upload-publisher"),
+        };
+        const requirements = document.getElementById("material-upload-requirements");
+        const mediaFieldRows = {
+            file: fields.file?.closest("p"),
+            url: fields.url?.closest("p"),
+            previewUrl: fields.previewUrl?.closest("p"),
+            youtubeTitle: fields.youtubeTitle?.closest("p"),
+        };
+        const typeRules = {
+            file: {
+                required: ["file"],
+                visible: ["file"],
+                message: "Required: an uploaded PDF, DOCX, TXT, or Markdown file. Video transcripts are uploaded separately in YouTube research."
+            },
+            website: {
+                required: ["url"],
+                visible: ["url"],
+                message: "Required: an external URL. Description, author, year, and tags are optional."
+            },
+            video: {
+                required: ["url"],
+                visible: ["url", "youtubeTitle"],
+                message: "Required: the video URL. Upload transcript text or a transcript file in the YouTube research section, not here."
+            },
+            paper: {
+                required: ["authors"],
+                either: true,
+                visible: ["file", "url", "previewUrl"],
+                message: "Required: authors and either an uploaded file or external URL. Document preview URL is optional."
+            },
+            journal: {
+                required: ["authors", "journal"],
+                either: true,
+                visible: ["file", "url", "previewUrl"],
+                message: "Required: authors, journal name, and either an uploaded file or external URL. Document preview URL is optional."
+            },
+            book: {
+                required: ["authors", "publisher"],
+                either: true,
+                visible: ["file", "url", "previewUrl"],
+                message: "Required: authors, publisher, and either an uploaded file or external URL. Document preview URL is optional."
+            },
+            blog: {
+                required: ["url"],
+                visible: ["url"],
+                message: "Required: the blog URL. Author, year, and tags are optional."
+            },
+            other: {
+                required: [],
+                either: true,
+                visible: ["file", "url", "previewUrl"],
+                message: "Required: either an uploaded file or external URL. Document preview URL is optional for document sources."
+            },
+        };
+
+        const setRequired = (field, required) => {
+            if (!field) return;
+            field.required = required;
+            field.setAttribute("aria-required", String(required));
+            field.closest("p")?.classList.toggle("conditional-required", required);
+        };
+
+        const syncRequirements = () => {
+            const rule = typeRules[fields.sourceType?.value] || typeRules.other;
+            ["file", "url", "authors", "journal", "publisher"].forEach((name) => {
+                setRequired(fields[name], rule.required.includes(name));
+            });
+            Object.entries(mediaFieldRows).forEach(([name, row]) => {
+                if (!row) return;
+                const visible = rule.visible.includes(name);
+                row.hidden = !visible;
+                const input = fields[name];
+                if (input) {
+                    input.disabled = !visible;
+                }
+            });
+
+            const hasFile = Boolean(fields.file?.files?.length);
+            const hasUrl = Boolean(fields.url?.value.trim());
+            fields.file?.setCustomValidity(
+                rule.either && !hasFile && !hasUrl ? "Upload a file or provide an external URL." : ""
+            );
+            requirements.textContent = rule.message;
+        };
+
+        fields.sourceType?.addEventListener("change", syncRequirements);
+        fields.file?.addEventListener("change", syncRequirements);
+        fields.url?.addEventListener("input", syncRequirements);
+        syncRequirements();
+    })();
+</script>
 {% endblock %}

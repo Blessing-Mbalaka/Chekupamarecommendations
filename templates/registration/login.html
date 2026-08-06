@@ -1,33 +1,49 @@
 {% extends "base.html" %}
 
+{% block title %}Sign in · UJ Learning Navigator{% endblock %}
+
 {% block content %}
-<section class="hero-card hero-card--login">
+<section class="hero-card hero-card--login" aria-labelledby="login-title">
     <div class="login-intro">
-        <p class="eyebrow">Student Support Platform</p>
-        <h2>Sign in to continue learning</h2>
-        <p class="muted">Personalized recommendations, baseline assessments, and chatbot guidance all live here.</p>
+        <div class="login-intro__copy">
+            <p class="eyebrow">UJ Learning Navigator</p>
+            <h2 id="login-title">Continue your learning journey</h2>
+            <p>One focused space for course materials, grounded study support, quizzes, and recommendations.</p>
+        </div>
         <div class="demo-strip">
-            <h3>Demo Logins</h3>
+            <div class="demo-strip__heading">
+                <h3>Explore a demo role</h3>
+                <span>No setup required</span>
+            </div>
             <div class="demo-grid">
                 {% for account in demo_accounts %}
                     <article class="demo-card">
                         <strong>{{ account.label }}</strong>
-                        <p><span>User:</span> {{ account.username }}</p>
-                        <p><span>Pass:</span> {{ account.password }}</p>
+                        <p><span>Username</span><code>{{ account.username }}</code></p>
+                        <p><span>Password</span><code>{{ account.password }}</code></p>
                     </article>
                 {% endfor %}
             </div>
         </div>
     </div>
-    <form method="post" class="panel form-panel login-form-panel">
-        <div>
-            <p class="eyebrow">Access Portal</p>
+    <form method="post" class="login-form-panel">
+        <div class="login-form-panel__heading">
+            <p class="eyebrow">Secure access</p>
             <h3>Welcome back</h3>
-            <p class="muted">Use one of the demo accounts or your own credentials.</p>
+            <p>Use your university credentials or one of the demo accounts.</p>
         </div>
         {% csrf_token %}
-        {{ form.as_p }}
-        <button type="submit" class="primary-button">Login</button>
+        {% if form.non_field_errors %}<div class="login-errors">{{ form.non_field_errors }}</div>{% endif %}
+        {% for field in form %}
+            <div class="login-field">
+                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}<div class="login-errors">{{ field.errors }}</div>{% endif %}
+            </div>
+        {% endfor %}
+        {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+        <button type="submit" class="primary-button login-submit">Sign in</button>
+        <p class="login-assurance">Your conversation history and learning progress stay attached to your account.</p>
     </form>
 </section>
 {% endblock %}

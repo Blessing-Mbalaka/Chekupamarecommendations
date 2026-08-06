@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+
+{% block title %}Question Analytics · UJ Learning Navigator{% endblock %}
+
+{% block content %}
+<section class="panel analytics-hero">
+    <div>
+        <p class="eyebrow">Lecturer intelligence</p>
+        <h2>Question Analytics</h2>
+        <p class="muted">Only substantive systems-thinking questions are stored here. Greetings, noise, and unrelated requests are automatically excluded.</p>
+    </div>
+    <div class="button-row">
+        <a class="secondary-button" href="{% url 'analytics_app:theme_create' %}">New manual theme</a>
+        <form method="post">
+            {% csrf_token %}<input type="hidden" name="action" value="backfill">
+            <button class="ghost-button" type="submit">Analyze stored chats</button>
+        </form>
+    </div>
+</section>
+
+<section class="stats-grid analytics-stats">
+    <article class="stat-card stat-card--highlight"><span>Relevant questions</span><strong>{{ total_questions }}</strong></article>
+    <article class="stat-card"><span>Visible themes</span><strong>{{ themes|length }}</strong></article>
+    <article class="stat-card"><span>Unassigned</span><strong>{{ unassigned_count }}</strong></article>
+    <article class="stat-card"><span>Last 7 days</span><strong>{{ recent_count }}</strong></article>
+</section>
+
+<section class="analytics-grid">
+    <article class="panel theme-map-panel">
+        <div class="section-heading">
+            <div><p class="eyebrow">Topic map</p><h3>Question themes</h3></div>
+            <div class="analytics-heading-actions">
+                <span class="muted">Circle size reflects question volume; overlap shows related demand areas.</span>
+                <button class="ghost-button" type="button" data-modal-open="topics-table-modal">Show topics table</button>
+            </div>
+        </div>
+        <div class="theme-map" role="img" aria-label="Overlapping circles showing question themes">
+            {% for theme in themes %}
+                <a href="?course={{ selected_course }}&theme={{ theme.pk }}" class="theme-bubble" style="--x:{{ theme.chart_x }}%;--y:{{ theme.chart_y }}%;--size:{{ theme.chart_size }}%;" title="{{ theme.label }}: {{ theme.question_count }} questions">
+                    <strong>{{ theme.label }}</strong><span>{{ theme.question_count }}</span>
+                </a>
+            {% empty %}
+                <div class="theme-map-empty">Run a model or create a manual theme to build this map.</div>
+            {% endfor %}
+        </div>
+    </article>
+
+    <article class="panel model-panel">
+        <p class="eyebrow">Suggested coding</p>
+        <h3>Generate editable themes</h3>
+        <p class="muted">LDA shows a K curve, BERTopic uses its derived topic groupings, and K-means shows its own cluster fit. Theme labels are derived from the clustered question content rather than file or media types.</p>
+        <form method="post" class="compact-form">
+            {% csrf_token %}<input type="hidden" name="action" value="suggest_themes">
+            {{ model_form.as_p }}
+            <button class="primary-button" type="submit">Suggest and assign themes</button>
+        </form>
+        {% if theme_report %}
+            <div class="theme-report">
+                <p><strong>Latest run:</strong> {{ theme_report.course_label }} · requested {{ theme_report.requested_model|upper }} · used {{ theme_report.backend|upper }}</p>
+                <p class="muted">{{ theme_report.document_count }} question{{ theme_report.document_count|pluralize }} analyzed, {{ theme_report.theme_labels|length }} cluster{{ theme_report.theme_labels|length|pluralize }} surfaced.</p>
+                {% if theme_report.k_curve %}
+                    <div class="theme-report__curve">
+                        <strong>{{ theme_report.metric_label }}</strong>
+                        <div class="theme-report__curve-points">
+                            {% for point in theme_report.k_curve %}
+                                <span>K={{ point.k }}: {{ point.score }}</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endif %}
+                {% if theme_report.keywords %}
+                    <div class="theme-report__keywords">
+                        {% for item in theme_report.keywords %}
+                            <article class="theme-report__keyword-card">
+                                <strong>{{ item.label }}</strong>
+                                <p>{{ item.keywords|join:", " }}</p>
+                            </article>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+        {% endif %}
+    </article>
+</section>
+
+<section class="panel">
+    <div class="section-heading">
+        <div><p class="eyebrow">Human review</p><h3>Theme catalogue</h3></div>
+        <span class="muted">Model suggestions stay fully editable.</span>
+    </div>
+    <div class="theme-catalogue">
+        {% for theme in themes %}
+            <article class="theme-card">
+                <div>
+                    <span class="source-chip {% if theme.is_model_suggested %}source-chip--external{% endif %}">{% if theme.is_model_suggested %}AI suggestion · {{ theme.model_backend }}{% else %}Manual code{% endif %}</span>
+                    <h4>{{ theme.label }}</h4>
+                    <p>{{ theme.description|default:"No description yet." }}</p>
+                    <strong>{{ theme.question_count }} question{{ theme.question_count|pluralize }}</strong>
+                </div>
+                <div class="theme-actions">
+                    <a class="ghost-button" href="{% url 'analytics_app:theme_edit' theme.pk %}">Edit</a>
+                    <form method="post" action="{% url 'analytics_app:theme_delete' theme.pk %}" onsubmit="return confirm('Delete this theme? Questions will remain unassigned.');">
+                        {% csrf_token %}<button class="text-button text-button--danger" type="submit">Delete</button>
+                    </form>
+                </div>
+            </article>
+        {% empty %}<p class="muted">No themes match the current course filter.</p>{% endfor %}
+    </div>
+</section>
+
+<section class="panel">
+    <div class="section-heading">
+        <div><p class="eyebrow">Stored demand</p><h3>Relevant student questions</h3></div>
+        <span class="privacy-note">Unrelated messages are not present in this dataset.</span>
+    </div>
+    <form method="get" class="analytics-filters">
+        <label>Course
+            <select name="course"><option value="">All manageable courses</option>{% for course in courses %}<option value="{{ course.pk }}" {% if selected_course == course.pk|stringformat:'s' %}selected{% endif %}>{{ course.code }} · {{ course.title }}</option>{% endfor %}</select>
+        </label>
+        <label>Theme
+            <select name="theme"><option value="">All themes</option><option value="unassigned" {% if selected_theme == 'unassigned' %}selected{% endif %}>Unassigned</option>{% for theme in all_themes %}<option value="{{ theme.pk }}" {% if selected_theme == theme.pk|stringformat:'s' %}selected{% endif %}>{{ theme.course.code }} · {{ theme.label }}</option>{% endfor %}</select>
+        </label>
+        <label class="filter-search">Search questions<input type="search" name="q" value="{{ search }}" placeholder="feedback loops, boundaries…"></label>
+        <button class="secondary-button" type="submit">Filter</button>
+    </form>
+
+    <div class="question-list">
+        {% for question in questions %}
+            <article class="question-row">
+                <div class="question-copy">
+                    <div class="question-meta"><span>{{ question.course.code }}</span><span>{{ question.message.session.student }}</span><time>{{ question.created_at|date:"d M Y, H:i" }}</time></div>
+                    <h4>{{ question.text }}</h4>
+                    <p>{{ question.classification_reason }} <span class="confidence">{{ question.relevance_score|floatformat:2 }} confidence · {{ question.relevance_backend }}</span></p>
+                </div>
+                <form method="post" class="theme-assignment">
+                    {% csrf_token %}<input type="hidden" name="action" value="assign_theme"><input type="hidden" name="question_id" value="{{ question.pk }}">
+                    <label>Human-coded theme
+                        <select name="theme_id">
+                            <option value="">Unassigned</option>
+                            {% for theme in all_themes %}{% if theme.course_id == question.course_id %}<option value="{{ theme.pk }}" {% if question.theme_id == theme.pk %}selected{% endif %}>{{ theme.label }}</option>{% endif %}{% endfor %}
+                        </select>
+                    </label>
+                    {% if question.suggested_theme_label %}<small>Suggested: {{ question.suggested_theme_label }}</small>{% endif %}
+                    <button class="ghost-button" type="submit">Save code</button>
+                </form>
+            </article>
+        {% empty %}<div class="empty-state"><h4>No relevant questions match these filters.</h4><p>Questions appear here after the chatbot accepts them as systems-thinking/course-related.</p></div>{% endfor %}
+    </div>
+</section>
+
+<div class="analytics-modal" id="topics-table-modal" hidden aria-hidden="true">
+    <div class="analytics-modal__backdrop" data-modal-close></div>
+    <div class="analytics-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="topics-table-title">
+        <div class="analytics-modal__header">
+            <div>
+                <p class="eyebrow">Analytics detail</p>
+                <h3 id="topics-table-title">Topics table</h3>
+            </div>
+            <button class="ghost-button" type="button" data-modal-close>Close</button>
+        </div>
+        <p class="muted">Review the actual topic labels, question counts, and current model keywords in one table.</p>
+        <div class="topics-table-shell">
+            <table class="topics-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Topic</th>
+                        <th scope="col">Questions</th>
+                        <th scope="col">Source</th>
+                        <th scope="col">Keywords</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in topic_rows %}
+                        <tr>
+                            <td>{{ row.label }}</td>
+                            <td>{{ row.question_count }}</td>
+                            <td>{{ row.backend }}</td>
+                            <td>{{ row.keywords|default:"-" }}</td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="4">No topics are available yet. Run a model or create a manual theme first.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    (() => {
+        const modal = document.getElementById("topics-table-modal");
+        const openButton = document.querySelector('[data-modal-open="topics-table-modal"]');
+        if (!modal || !openButton) return;
+
+        const closeButtons = modal.querySelectorAll("[data-modal-close]");
+        const toggleModal = (open) => {
+            modal.hidden = !open;
+            modal.setAttribute("aria-hidden", String(!open));
+            document.body.classList.toggle("body--modal-open", open);
+        };
+
+        openButton.addEventListener("click", () => toggleModal(true));
+        closeButtons.forEach((button) => button.addEventListener("click", () => toggleModal(false)));
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "Escape" && !modal.hidden) {
+                toggleModal(false);
+            }
+        });
+    })();
+</script>
+{% endblock %}

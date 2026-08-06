@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Edit question · {{ quiz.title }}{% endblock %}
+{% block content %}
+<section class="panel">
+    <p class="eyebrow">{{ quiz.title }}</p><h2>Edit question</h2>
+    {% if question.is_ai_generated %}<div class="grounding-notice"><strong>AI draft from {{ question.generation_backend }}</strong><br>Every field below has been pre-populated. Check the prompt, answer options, correct answer, explanation, points, and source. Saving marks it as human reviewed.</div>{% endif %}
+    <form method="post" class="form-panel">{% csrf_token %}{{ form.as_p }}<div class="button-row"><button class="primary-button" type="submit">Save question</button><a class="ghost-button" href="{% url 'learning:quiz_builder_detail' quiz.pk %}">Cancel</a></div></form>
+</section>
+{% endblock %}
