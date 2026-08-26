@@ -128,7 +128,7 @@
         {% for question in questions %}
             <article class="question-row">
                 <div class="question-copy">
-                    <div class="question-meta"><span>{{ question.course.code }}</span><span>{{ question.message.session.student }}</span><time>{{ question.created_at|date:"d M Y, H:i" }}</time></div>
+                    <div class="question-meta"><span>{{ question.course.code }}</span><span>{% if question.message_id %}{{ question.message.session.student }}{% else %}Source message removed{% endif %}</span><time>{{ question.created_at|date:"d M Y, H:i" }}</time></div>
                     <h4>{{ question.text }}</h4>
                     <p>{{ question.classification_reason }} <span class="confidence">{{ question.relevance_score|floatformat:2 }} confidence · {{ question.relevance_backend }}</span></p>
                 </div>
@@ -167,6 +167,7 @@
                         <th scope="col">Questions</th>
                         <th scope="col">Source</th>
                         <th scope="col">Keywords</th>
+                        <th scope="col">Question drill-down</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -176,10 +177,20 @@
                             <td>{{ row.question_count }}</td>
                             <td>{{ row.backend }}</td>
                             <td>{{ row.keywords|default:"-" }}</td>
+                            <td>
+                                <details class="topic-drilldown">
+                                    <summary>Inspect {{ row.questions|length }} question{{ row.questions|length|pluralize }}</summary>
+                                    <div class="topic-drilldown__list">
+                                        {% for question in row.questions %}
+                                            <article><strong>{{ question.text }}</strong><span>{{ question.student }} · {{ question.created_at|date:"d M Y, H:i" }} · {{ question.confidence|floatformat:2 }}</span></article>
+                                        {% empty %}<p class="muted">No questions are currently assigned to this topic.</p>{% endfor %}
+                                    </div>
+                                </details>
+                            </td>
                         </tr>
                     {% empty %}
                         <tr>
-                            <td colspan="4">No topics are available yet. Run a model or create a manual theme first.</td>
+                            <td colspan="5">No topics are available yet. Run a model or create a manual theme first.</td>
                         </tr>
                     {% endfor %}
                 </tbody>

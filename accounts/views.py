@@ -7,6 +7,7 @@ from django.shortcuts import redirect, render
 
 from .forms import StudentProfileForm, UserProfileForm
 from .services.profile import get_or_create_student_profile
+from analytics_app.models import AnalyticsQuestionnaireResponse
 
 
 class DemoLoginView(LoginView):
@@ -63,7 +64,11 @@ def profile_view(request):
     return render(
         request,
         "accounts/profile.html",
-        {"user_form": user_form, "profile_form": profile_form},
+        {
+            "user_form": user_form,
+            "profile_form": profile_form,
+            "analytics_responses": AnalyticsQuestionnaireResponse.objects.filter(user=request.user).select_related("questionnaire"),
+        },
     )
 
 # Create your views here.

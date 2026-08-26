@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}UJ Learning Navigator{% endblock %}</title>
     <meta name="theme-color" content="#ef5b21">
-    <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260806-14">
+    <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260814-analytics">
 </head>
 <body data-track-path="{{ request.path }}">
     <div class="shell {% if not user.is_authenticated %}shell--public{% endif %}">
@@ -39,6 +39,14 @@
                             </span>
                             <span>Profile</span>
                         </a>
+                        {% if analytics_questionnaire %}
+                            <button type="button" class="nav-link survey-nav-entry" data-survey-open data-analytics-label="Open student access survey">
+                                <span class="nav-icon" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" focusable="false"><path d="M12 2 4 5v6c0 5.05 3.41 9.77 8 11 4.59-1.23 8-5.95 8-11V5zm-1 6h2v5h-2zm0 6.5h2v2h-2z"/></svg>
+                                </span>
+                                <span>Access Survey</span><span class="survey-nav-dot">New</span>
+                            </button>
+                        {% endif %}
                         <a href="{% url 'learning:material_list' %}" class="nav-link {% if '/learning/materials/' in request.path %}nav-link--active{% endif %}">
                             <span class="nav-icon" aria-hidden="true">
                                 <svg viewBox="0 0 24 24" focusable="false"><path d="M4 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4zm2 2v12h12V6zm14 1 2 1v11a2 2 0 0 1-2 2h-1V7z"/></svg>
@@ -58,6 +66,12 @@
                             <span>Chatbot</span>
                         </a>
                         {% if user.is_staff or user.role == 'lecturer' or user.role == 'ta' or user.role == 'admin' %}
+                            <a href="{% url 'analytics_app:site' %}" class="nav-link {% if '/analytics/site/' in request.path %}nav-link--active{% endif %}">
+                                <span class="nav-icon" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" focusable="false"><path d="M3 3h2v16h16v2H3zm4 12 4-4 3 3 5-7 2 1-6.4 9-3.6-3.6-2.6 2.6z"/></svg>
+                                </span>
+                                <span>Site Analytics</span>
+                            </a>
                             <a href="{% url 'analytics_app:questions' %}" class="nav-link {% if '/analytics/questions/' in request.path %}nav-link--active{% endif %}">
                                 <span class="nav-icon" aria-hidden="true">
                                     <svg viewBox="0 0 24 24" focusable="false"><path d="M4 19h16v2H4zm1-2V9h3v8zm6 0V3h3v14zm6 0v-5h3v5z"/></svg>
@@ -69,6 +83,14 @@
                                     <svg viewBox="0 0 24 24" focusable="false"><path d="M13 3a9 9 0 1 0 8.95 10h-2.02A7 7 0 1 1 13 5zm1 0v6h6A7 7 0 0 0 14 3z"/></svg>
                                 </span>
                                 <span>System Health</span>
+                            </a>
+                        {% endif %}
+                        {% if user.is_staff or user.is_superuser or user.role == 'admin' %}
+                            <a href="{% url 'analytics_app:ethics' %}" class="nav-link {% if '/analytics/ethics/' in request.path %}nav-link--active{% endif %}">
+                                <span class="nav-icon" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" focusable="false"><path d="M12 2 4 5v6c0 5.05 3.41 9.77 8 11 4.59-1.23 8-5.95 8-11V5zm-1 6h2v5h-2zm0 6.5h2v2h-2z"/></svg>
+                                </span>
+                                <span>Ethics &amp; Surveys</span>
                             </a>
                         {% endif %}
                     {% if user.is_superuser %}
@@ -124,48 +146,103 @@
             {% block content %}{% endblock %}
         </main>
     </div>
+    {% include "analytics_app/_questionnaire_modal.html" %}
     {% if user.is_authenticated %}
         <script>
+        (() => {
             const getCsrfToken = () => {
                 const match = document.cookie.match(/csrftoken=([^;]+)/);
-                return match ? match[1] : "";
+                return match ? decodeURIComponent(match[1]) : "";
             };
 
-            const sendAnalytics = (payload) => {
-                fetch("{% url 'analytics_app:track' %}", {
+            const sessionKey = "lms_analytics_session";
+            let sessionId = sessionStorage.getItem(sessionKey);
+            if (!sessionId) {
+                sessionId = window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+                sessionStorage.setItem(sessionKey, sessionId);
+            }
+
+            const pageContext = () => ({
+                session_id: sessionId,
+                page_title: document.title.slice(0, 120),
+                viewport: `${window.innerWidth}x${window.innerHeight}`,
+                referrer_path: document.referrer ? (() => { try { return new URL(document.referrer).pathname; } catch (_) { return ""; } })() : "",
+            });
+
+            const sendAnalytics = (payload, keepalive = true) => {
+                return fetch("{% url 'analytics_app:track' %}", {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
                         "X-CSRFToken": getCsrfToken(),
                     },
-                    body: JSON.stringify(payload),
+                    credentials: "same-origin",
+                    keepalive,
+                    body: JSON.stringify({
+                        ...payload,
+                        path: window.location.pathname,
+                        metadata: { ...pageContext(), ...(payload.metadata || {}) },
+                    }),
                 }).catch(() => {});
             };
 
             document.addEventListener("click", (event) => {
-                const target = event.target.closest("a, button");
+                const target = event.target.closest("a, button, summary, [role='button'], [data-analytics-label]");
                 if (!target) return;
+                const href = target.getAttribute("href") || "";
+                const label = target.dataset.analyticsLabel || target.getAttribute("aria-label") || target.innerText || target.title || target.id;
+                const isDownload = target.hasAttribute("download") || /\.(pdf|docx?|xlsx?|pptx?|zip|csv)$/i.test(href.split("?")[0]);
                 sendAnalytics({
-                    event_type: "click",
-                    path: window.location.pathname,
+                    event_type: isDownload ? "download" : "click",
                     metadata: {
-                        text: target.innerText.trim().slice(0, 80),
+                        label: String(label || "Unlabelled control").trim().slice(0, 80),
+                        tag: target.tagName.toLowerCase(),
+                        element_id: target.id.slice(0, 80),
+                        href_path: href ? (() => { try { return new URL(href, location.href).pathname; } catch (_) { return ""; } })() : "",
+                        outbound: Boolean(href && (() => { try { return new URL(href, location.href).origin !== location.origin; } catch (_) { return false; } })()),
                     },
                 });
             });
 
-            const startedAt = Date.now();
-            window.addEventListener("beforeunload", () => {
-                const seconds = Math.round((Date.now() - startedAt) / 1000);
+            document.addEventListener("submit", (event) => {
+                const form = event.target;
                 sendAnalytics({
-                    event_type: "dwell",
-                    path: window.location.pathname,
-                    duration_seconds: seconds,
                     metadata: {
-                        long_view: seconds > 90,
+                        label: form.dataset.analyticsLabel || form.getAttribute("aria-label") || form.id || "Form",
+                        form_id: form.id.slice(0, 80),
+                        method: (form.method || "get").toUpperCase(),
+                        action_path: (() => { try { return new URL(form.action || location.href).pathname; } catch (_) { return ""; } })(),
+                    },
+                    event_type: "form_submit",
+                });
+            });
+
+            document.addEventListener("change", (event) => {
+                const control = event.target.closest("input, select, textarea");
+                if (!control || ["password", "hidden"].includes(control.type)) return;
+                sendAnalytics({
+                    event_type: "input_interaction",
+                    metadata: {
+                        label: control.dataset.analyticsLabel || control.getAttribute("aria-label") || control.labels?.[0]?.innerText || control.name || control.id || "Form control",
+                        control_type: control.type || control.tagName.toLowerCase(),
+                        control_name: control.name.slice(0, 80),
                     },
                 });
             });
+
+            let visibleSince = document.visibilityState === "visible" ? Date.now() : null;
+            const sendDwell = () => {
+                if (!visibleSince) return;
+                const seconds = Math.max(1, Math.round((Date.now() - visibleSince) / 1000));
+                visibleSince = null;
+                sendAnalytics({ event_type: "dwell", duration_seconds: seconds, metadata: { long_view: seconds > 90 } }, true);
+            };
+            document.addEventListener("visibilitychange", () => {
+                if (document.visibilityState === "hidden") sendDwell();
+                else visibleSince = Date.now();
+            });
+            window.addEventListener("pagehide", sendDwell);
+        })();
         </script>
     {% endif %}
     {% block extra_scripts %}{% endblock %}

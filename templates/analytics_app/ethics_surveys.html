@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}Ethics & Surveys | UJ Learning Navigator{% endblock %}
+
+{% block content %}
+<section class="ethics-hero">
+    <div>
+        <p class="eyebrow">Governance workspace</p>
+        <h2>Ethics &amp; Surveys</h2>
+        <p class="muted">Configure voluntary questionnaires, document their purpose, review consent language, and control publication.</p>
+    </div>
+    <a class="primary-button" href="/admin/analytics_app/analyticsquestionnaire/add/" data-analytics-label="Create ethics survey">Create questionnaire</a>
+</section>
+
+<section class="ethics-workflow" aria-label="Questionnaire governance workflow">
+    <article><span>1</span><div><strong>Draft</strong><p>Define purpose, questions, choices, and retention.</p></div></article>
+    <article><span>2</span><div><strong>Review</strong><p>Check minimality, consent wording, and institutional approval.</p></div></article>
+    <article><span>3</span><div><strong>Publish</strong><p>Use the admin review action to expose it on profiles.</p></div></article>
+    <article><span>4</span><div><strong>Retain responsibly</strong><p>Withdrawals delete immediately; scheduled cleanup enforces retention.</p></div></article>
+</section>
+
+{% if active_questionnaire %}
+<section class="ethics-active-banner">
+    <span class="ethics-status ethics-status--published">Published</span>
+    <div><strong>{{ active_questionnaire.title }}</strong><p>Currently available from eligible users’ profile pages.</p></div>
+</section>
+{% endif %}
+
+<section class="ethics-card-grid">
+    {% for questionnaire in questionnaires %}
+        <article class="panel ethics-survey-card">
+            <div class="ethics-survey-card__heading">
+                <div>
+                    {% if questionnaire.is_published %}<span class="ethics-status ethics-status--published">Published</span>
+                    {% elif questionnaire.reviewed_at %}<span class="ethics-status ethics-status--reviewed">Reviewed</span>
+                    {% else %}<span class="ethics-status">Draft</span>{% endif %}
+                    <h3>{{ questionnaire.title }}</h3>
+                </div>
+                <a class="ghost-button" href="/admin/analytics_app/analyticsquestionnaire/{{ questionnaire.pk }}/change/">Configure</a>
+            </div>
+            <p>{{ questionnaire.purpose }}</p>
+            <dl class="ethics-metrics">
+                <div><dt>Questions</dt><dd>{{ questionnaire.question_count }}</dd></div>
+                <div><dt>Responses</dt><dd>{{ questionnaire.response_count }}</dd></div>
+                <div><dt>Retention</dt><dd>{{ questionnaire.retention_days }} days</dd></div>
+            </dl>
+            <details class="ethics-question-preview">
+                <summary>Preview configured questions</summary>
+                <ol>{% for question in questionnaire.questions.all %}<li><strong>{{ question.label }}</strong><span>{{ question.get_question_type_display }}{% if question.is_required %} · Required{% else %} · Optional{% endif %}</span></li>{% empty %}<li>No questions configured.</li>{% endfor %}</ol>
+            </details>
+            <footer>
+                <span>Created by {{ questionnaire.created_by|default:"System" }}</span>
+                {% if questionnaire.reviewed_at %}<span>Reviewed {{ questionnaire.reviewed_at|date:"d M Y" }} by {{ questionnaire.reviewed_by }}</span>{% else %}<span>Awaiting review</span>{% endif %}
+            </footer>
+        </article>
+    {% empty %}
+        <div class="empty-state"><h3>No questionnaires yet</h3><p>Create a draft to begin the ethics review workflow.</p></div>
+    {% endfor %}
+</section>
+
+<section class="panel ethics-operations">
+    <div><p class="eyebrow">Retention operation</p><h3>Scheduled deletion</h3></div>
+    <p>Run <code>python manage.py purge_expired_analytics_responses</code> daily from your scheduler to enforce each form’s configured retention period.</p>
+</section>
+{% endblock %}

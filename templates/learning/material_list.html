@@ -12,7 +12,7 @@
         <h3>Recommended now</h3>
         {% for material in recommendations %}
             <a class="list-link" href="{{ material.get_absolute_url }}">
-                {{ material.title }} <span>{{ material.course.code }}</span>
+                {{ material.analytics_label }} <span>{{ material.course.code }}</span>
             </a>
         {% empty %}
             <p class="muted">Recommendations will appear here as soon as enough profile or baseline data exists.</p>
@@ -23,7 +23,7 @@
         {% for material in materials %}
             <div class="library-material-row">
                 <a class="list-link" href="{{ material.get_absolute_url }}">
-                    {{ material.title }} <span>{{ material.get_source_type_display }}</span>
+                    {{ material.analytics_label }} <span>{{ material.course.code }}</span>
                 </a>
                 {% if can_build_quiz %}<a class="library-quiz-action" href="{% url 'learning:quiz_builder' %}?material={{ material.pk }}">Make quiz</a>{% endif %}
             </div>

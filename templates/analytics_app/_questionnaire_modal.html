@@ -1,0 +1,97 @@
+{% if analytics_questionnaire %}
+<div class="consent-survey" id="analytics-questionnaire" hidden aria-hidden="true">
+    <div class="consent-survey__backdrop" data-survey-close></div>
+    <section class="consent-survey__dialog" role="dialog" aria-modal="true" aria-labelledby="analytics-questionnaire-title">
+        <div class="consent-survey__heading">
+            <div>
+                <p class="eyebrow">Privacy and research ethics</p>
+                <h2 id="analytics-questionnaire-title">{{ analytics_questionnaire.title }}</h2>
+                <p class="survey-step-label">Voluntary questionnaire · {{ analytics_questionnaire.questions.count }} questions</p>
+            </div>
+            <button type="button" class="survey-close-button" data-survey-close aria-label="Close questionnaire">×</button>
+        </div>
+        <p class="consent-survey__purpose">{{ analytics_questionnaire.purpose }}</p>
+        <div class="privacy-callout">
+            <span class="privacy-callout__icon" aria-hidden="true">✓</span>
+            <div>
+                <strong>Your privacy choices</strong>
+                <p>Participation is voluntary. We collect only the answers you submit, your account link, consent time, and browser timezone. We do not request GPS coordinates or infer your address. You can withdraw and delete your response from this profile.</p>
+                <a href="https://www.gov.za/documents/protection-personal-information-act" target="_blank" rel="noopener">Read the Protection of Personal Information Act</a>
+            </div>
+        </div>
+        <form method="post" action="{% url 'analytics_app:questionnaire_submit' analytics_questionnaire.pk %}" id="analytics-questionnaire-form" data-analytics-label="Optional analytics questionnaire">
+            {% csrf_token %}<input type="hidden" name="browser_timezone" value="">
+            <div class="consent-survey__questions">
+                {% for question in analytics_questionnaire.questions.all %}
+                    <fieldset class="consent-survey__question" data-question-key="{{ question.key }}">
+                        <legend><span class="survey-question-number">{{ forloop.counter }}</span>{{ question.label }}{% if question.is_required %} <span class="survey-required" aria-label="required">Required</span>{% endif %}</legend>
+                        {% if question.help_text %}<p class="muted">{{ question.help_text }}</p>{% endif %}
+                        {% if question.question_type == 'text' %}
+                            <input type="text" name="{{ question.key }}" maxlength="500" {% if question.is_required %}required{% endif %}>
+                        {% elif question.question_type == 'multiselect' %}
+                            <div class="survey-options">{% for option in question.choice_options %}<label><input type="checkbox" name="{{ question.key }}" value="{{ option }}"> <span>{{ option }}</span></label>{% endfor %}</div>
+                        {% else %}
+                            <select name="{{ question.key }}" {% if question.is_required %}required{% endif %}>
+                                <option value="">Choose an option</option>
+                                {% for option in question.choice_options %}<option value="{{ option }}">{{ option }}</option>{% endfor %}
+                            </select>
+                        {% endif %}
+                        <small class="survey-field-error" aria-live="polite"></small>
+                    </fieldset>
+                {% endfor %}
+            </div>
+            <label class="consent-check">
+                <input type="checkbox" name="consent" value="yes" required>
+                <span><strong>Consent</strong>{{ analytics_questionnaire.consent_text }}</span>
+            </label>
+            <div class="survey-retention"><span aria-hidden="true">◷</span> Response retention: {{ analytics_questionnaire.retention_days }} days</div>
+            <div class="survey-error" aria-live="polite"></div>
+            <div class="consent-survey__actions">
+                <button class="primary-button" type="submit">Consent and submit</button>
+                <button class="ghost-button" type="button" data-survey-close>Cancel</button>
+            </div>
+        </form>
+    </section>
+</div>
+<script>
+(() => {
+    const modal = document.getElementById("analytics-questionnaire");
+    const form = document.getElementById("analytics-questionnaire-form");
+    const openButtons = document.querySelectorAll("[data-survey-open]");
+    const open = () => {
+        modal.hidden = false; modal.setAttribute("aria-hidden", "false");
+        document.body.classList.add("body--survey-open");
+        modal.querySelector("select, input:not([type='hidden'])")?.focus();
+    };
+    const close = () => {
+        modal.hidden = true; modal.setAttribute("aria-hidden", "true");
+        document.body.classList.remove("body--survey-open");
+    };
+    openButtons.forEach(button => button.addEventListener("click", open));
+    modal.querySelectorAll("[data-survey-close]").forEach(button => button.addEventListener("click", close));
+    document.addEventListener("keydown", event => { if (event.key === "Escape" && !modal.hidden) close(); });
+    const introKey = "analytics-questionnaire-{{ analytics_questionnaire.pk }}-introduced";
+    if (!sessionStorage.getItem(introKey)) {
+        sessionStorage.setItem(introKey, "yes");
+        window.setTimeout(open, 450);
+    }
+    form.elements.browser_timezone.value = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+    form.addEventListener("submit", async event => {
+        event.preventDefault();
+        form.querySelectorAll(".survey-field-error").forEach(node => node.textContent = "");
+        const errorNode = form.querySelector(".survey-error"); errorNode.textContent = "";
+        const response = await fetch(form.action, {
+            method: "POST", credentials: "same-origin",
+            headers: { "X-CSRFToken": form.querySelector('[name="csrfmiddlewaretoken"]').value }, body: new FormData(form),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (response.ok) { close(); window.location.reload(); return; }
+        errorNode.textContent = payload.error || "The questionnaire could not be saved.";
+        Object.entries(payload.fields || {}).forEach(([key, message]) => {
+            const node = form.querySelector(`[data-question-key="${CSS.escape(key)}"] .survey-field-error`);
+            if (node) node.textContent = message;
+        });
+    });
+})();
+</script>
+{% endif %}

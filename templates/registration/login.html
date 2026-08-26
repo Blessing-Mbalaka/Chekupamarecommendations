@@ -44,6 +44,12 @@
         {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
         <button type="submit" class="primary-button login-submit">Sign in</button>
         <p class="login-assurance">Your conversation history and learning progress stay attached to your account.</p>
+        <aside class="login-survey-notice">
+            <span aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false"><path d="M12 2 4 5v6c0 5.05 3.41 9.77 8 11 4.59-1.23 8-5.95 8-11V5zm-1 6h2v5h-2zm0 6.5h2v2h-2z"/></svg>
+            </span>
+            <div><strong>Optional student access survey</strong><p>After signing in, students can complete a short privacy-conscious survey to help improve LMS access. Participation is voluntary.</p></div>
+        </aside>
     </form>
 </section>
 {% endblock %}

@@ -195,6 +195,31 @@ class Material(models.Model):
         return "Additional material" if self.source_origin == self.SourceOrigin.EXTERNAL else "Prescribed material"
 
     @property
+    def content_descriptor(self):
+        type_labels = {
+            self.SourceType.FILE: "Course file",
+            self.SourceType.WEBSITE: "Website",
+            self.SourceType.VIDEO: "Video",
+            self.SourceType.PAPER: "Academic paper",
+            self.SourceType.JOURNAL: "Journal article",
+            self.SourceType.BOOK: "Book",
+            self.SourceType.BLOG: "Blog post",
+            self.SourceType.OTHER: "Learning resource",
+        }
+        label = type_labels.get(self.source_type, self.get_source_type_display())
+        if self.topic_id and self.topic and self.topic.title:
+            return f"{label} on {self.topic.title}"
+        return f"{label} resource"
+
+    @property
+    def analytics_label(self):
+        title = (self.youtube_title or self.title or "Untitled resource").strip()
+        descriptor = self.content_descriptor
+        if title.lower() in descriptor.lower():
+            return descriptor
+        return f"{descriptor} — {title}"
+
+    @property
     def discovered_topics(self):
         labels = []
         if self.topic:

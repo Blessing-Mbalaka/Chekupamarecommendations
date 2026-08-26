@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block title %}Site Analytics | UJ Learning Navigator{% endblock %}
+
+{% block content %}
+<section class="analytics-header">
+    <div>
+        <p class="eyebrow">Learning experience telemetry</p>
+        <h2>Site analytics</h2>
+        <p class="muted">Page views, content engagement, clicks, form interactions, and endpoint traffic by user.</p>
+    </div>
+    <form method="get" class="analytics-filters">
+        <label>
+            User
+            <select name="user">
+                <option value="">All permitted users</option>
+                {% for analytics_user in users %}
+                    <option value="{{ analytics_user.pk }}" {% if selected_user == analytics_user.pk|stringformat:'s' %}selected{% endif %}>
+                        {{ analytics_user.get_full_name|default:analytics_user.username }} ({{ analytics_user.username }})
+                    </option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>
+            Period
+            <select name="days">
+                <option value="7" {% if days == 7 %}selected{% endif %}>Last 7 days</option>
+                <option value="30" {% if days == 30 %}selected{% endif %}>Last 30 days</option>
+                <option value="90" {% if days == 90 %}selected{% endif %}>Last 90 days</option>
+            </select>
+        </label>
+        <button type="submit" class="primary-button" data-analytics-label="Apply analytics filters">Apply</button>
+    </form>
+</section>
+
+<section class="analytics-kpis" aria-label="Analytics summary">
+    <article class="stat-card"><span>Total events</span><strong>{{ total_events }}</strong></article>
+    <article class="stat-card"><span>Page/content views</span><strong>{{ page_view_count }}</strong></article>
+    <article class="stat-card"><span>Clicks</span><strong>{{ click_count }}</strong></article>
+    <article class="stat-card"><span>Endpoint requests</span><strong>{{ endpoint_count }}</strong></article>
+    <article class="stat-card"><span>Active users</span><strong>{{ unique_users }}</strong></article>
+</section>
+
+<section class="analytics-chart-grid">
+    <article class="panel analytics-chart-panel analytics-chart-panel--wide">
+        <div><p class="eyebrow">Activity over time</p><h3>Engagement trend</h3></div>
+        <div id="analytics-trend" class="plotly-chart" aria-label="Daily analytics activity chart"></div>
+    </article>
+    <article class="panel analytics-chart-panel">
+        <div><p class="eyebrow">Navigation</p><h3>Most viewed pages</h3></div>
+        <div id="analytics-pages" class="plotly-chart" aria-label="Most viewed pages chart"></div>
+    </article>
+    <article class="panel analytics-chart-panel">
+        <div><p class="eyebrow">Interaction</p><h3>Most clicked controls</h3></div>
+        <div id="analytics-clicks" class="plotly-chart" aria-label="Most clicked controls chart"></div>
+    </article>
+    <article class="panel analytics-chart-panel analytics-chart-panel--wide">
+        <div><p class="eyebrow">Time of day</p><h3>When users are active</h3></div>
+        <div id="analytics-hourly" class="plotly-chart" aria-label="Activity by hour chart"></div>
+    </article>
+    <article class="panel analytics-chart-panel">
+        <div><p class="eyebrow">Voluntary demographics</p><h3>Region</h3></div>
+        {% if not demographics_available %}<p class="privacy-note">Hidden until at least 3 users have consented (currently {{ demographic_response_count }}).</p>{% endif %}
+        <div id="analytics-regions" class="plotly-chart" aria-label="Consented regional distribution chart"></div>
+    </article>
+    <article class="panel analytics-chart-panel">
+        <div><p class="eyebrow">Voluntary demographics</p><h3>Gender</h3></div>
+        {% if not demographics_available %}<p class="privacy-note">Hidden until at least 3 users have consented (currently {{ demographic_response_count }}).</p>{% endif %}
+        <div id="analytics-gender" class="plotly-chart" aria-label="Consented gender distribution chart"></div>
+    </article>
+</section>
+
+<section class="analytics-table-grid">
+    <article class="panel analytics-table-panel">
+        <div><p class="eyebrow">Content</p><h3>Most viewed learning materials</h3></div>
+        <div class="analytics-table-wrap">
+            <table>
+                <thead><tr><th>Specific content</th><th>Type / topic</th><th>Course</th><th>Clicks</th><th>Views</th><th>Users</th></tr></thead>
+                <tbody>
+                    {% for row in material_rows %}
+                        <tr><td>{{ row.display_name }}</td><td>{{ row.type_label }}{% if row.material__topic__title %} · {{ row.material__topic__title }}{% endif %}</td><td>{{ row.material__course__code }}</td><td>{{ row.clicks }}</td><td>{{ row.views }}</td><td>{{ row.unique_users }}</td></tr>
+                    {% empty %}<tr><td colspan="6" class="muted">No material clicks or views in this period.</td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </article>
+    <article class="panel analytics-table-panel">
+        <div><p class="eyebrow">Application traffic</p><h3>Endpoint activity</h3></div>
+        <div class="analytics-table-wrap">
+            <table>
+                <thead><tr><th>Endpoint</th><th>Method</th><th>Status</th><th>Requests</th></tr></thead>
+                <tbody>
+                    {% for row in endpoint_rows %}
+                        <tr><td><code>{{ row.path }}</code></td><td>{{ row.metadata__method }}</td><td>{{ row.metadata__status_code }}</td><td>{{ row.requests }}</td></tr>
+                    {% empty %}<tr><td colspan="4" class="muted">No endpoint requests in this period.</td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </article>
+    <article class="panel analytics-table-panel analytics-table-panel--wide">
+        <div><p class="eyebrow">Per-user detail</p><h3>User engagement</h3></div>
+        <div class="analytics-table-wrap">
+            <table>
+                <thead><tr><th>User</th><th>Events</th><th>Views</th><th>Sessions</th><th>Engaged time</th><th>Last active</th><th></th></tr></thead>
+                <tbody>
+                    {% for row in user_rows %}
+                        <tr>
+                            <td>{% if row.user__first_name %}{{ row.user__first_name }} {{ row.user__last_name }}{% else %}{{ row.user__username }}{% endif %}</td>
+                            <td>{{ row.events }}</td><td>{{ row.page_views }}</td><td>{{ row.sessions }}</td><td>{{ row.dwell_seconds|default:0 }}s</td><td>{{ row.last_seen|date:"d M Y, H:i" }}</td>
+                            <td><a href="?days={{ days }}&user={{ row.user_id }}" class="ghost-button" data-analytics-label="Inspect analytics user">Inspect</a></td>
+                        </tr>
+                    {% empty %}<tr><td colspan="7" class="muted">No user activity in this period.</td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </article>
+</section>
+
+{{ chart_data|json_script:"site-analytics-data" }}
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<script>
+(() => {
+    const payload = JSON.parse(document.getElementById("site-analytics-data").textContent);
+    if (!window.Plotly) {
+        document.querySelectorAll(".plotly-chart").forEach(chart => {
+            chart.classList.add("plotly-chart--unavailable");
+            chart.textContent = "Charts could not load. The analytics tables below remain available.";
+        });
+        return;
+    }
+    const config = { responsive: true, displaylogo: false, modeBarButtonsToRemove: ["lasso2d", "select2d"] };
+    const layout = (extra = {}) => ({
+        paper_bgcolor: "transparent", plot_bgcolor: "transparent", margin: { l: 48, r: 18, t: 16, b: 54 },
+        font: { family: "Inter, system-ui, sans-serif", color: "#252525" },
+        xaxis: { gridcolor: "#ece7e2", automargin: true }, yaxis: { gridcolor: "#ece7e2", automargin: true },
+        legend: { orientation: "h", y: 1.12 }, ...extra
+    });
+    const emptyAnnotation = { text: "No activity for this filter", showarrow: false, font: { color: "#777" } };
+    const daily = payload.daily;
+    Plotly.newPlot("analytics-trend", daily.length ? [
+        { x: daily.map(item => item.date), y: daily.map(item => item.page_views), name: "Views", type: "scatter", mode: "lines+markers", line: { color: "#ef5b21", width: 3 } },
+        { x: daily.map(item => item.date), y: daily.map(item => item.clicks), name: "Clicks", type: "scatter", mode: "lines+markers", line: { color: "#592c82", width: 3 } },
+        { x: daily.map(item => item.date), y: daily.map(item => item.requests), name: "Requests", type: "scatter", mode: "lines", line: { color: "#4f7c74", width: 2 } }
+    ] : [], layout(daily.length ? {} : { annotations: [emptyAnnotation] }), config);
+
+    const pages = [...payload.pages].reverse();
+    Plotly.newPlot("analytics-pages", pages.length ? [{ x: pages.map(item => item.count), y: pages.map(item => item.label), type: "bar", orientation: "h", marker: { color: "#ef5b21" }, hovertemplate: "%{y}<br>%{x} views<extra></extra>" }] : [], layout(pages.length ? { showlegend: false } : { annotations: [emptyAnnotation] }), config);
+
+    const clicks = [...payload.clicks].reverse();
+    Plotly.newPlot("analytics-clicks", clicks.length ? [{ x: clicks.map(item => item.count), y: clicks.map(item => item.label), type: "bar", orientation: "h", marker: { color: "#592c82" }, hovertemplate: "%{y}<br>%{x} clicks<extra></extra>" }] : [], layout(clicks.length ? { showlegend: false } : { annotations: [emptyAnnotation] }), config);
+
+    Plotly.newPlot("analytics-hourly", [{ x: payload.hourly.map(item => item.hour), y: payload.hourly.map(item => item.count), type: "bar", marker: { color: "#4f7c74" }, hovertemplate: "%{x}<br>%{y} activities<extra></extra>" }], layout({ showlegend: false, xaxis: { dtick: 2, gridcolor: "#ece7e2" } }), config);
+
+    const regions = payload.regions;
+    Plotly.newPlot("analytics-regions", regions.length ? [{ labels: regions.map(item => item.label), values: regions.map(item => item.count), type: "pie", hole: .48, marker: { colors: ["#ef5b21", "#592c82", "#4f7c74", "#d29c31", "#3767a5"] } }] : [], layout(regions.length ? { showlegend: true, margin: { l: 15, r: 15, t: 15, b: 15 } } : { annotations: [emptyAnnotation] }), config);
+
+    const gender = payload.gender;
+    Plotly.newPlot("analytics-gender", gender.length ? [{ labels: gender.map(item => item.label), values: gender.map(item => item.count), type: "pie", hole: .48, marker: { colors: ["#592c82", "#ef5b21", "#4f7c74", "#d29c31", "#999"] } }] : [], layout(gender.length ? { showlegend: true, margin: { l: 15, r: 15, t: 15, b: 15 } } : { annotations: [emptyAnnotation] }), config);
+})();
+</script>
+{% endblock %}

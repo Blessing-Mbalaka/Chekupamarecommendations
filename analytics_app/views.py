@@ -7,14 +7,17 @@ from django.core.exceptions import PermissionDenied
 from django.db.models import Count, Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import Resolver404, resolve
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.utils.http import url_has_allowed_host_and_scheme
+from django.views.decorators.http import require_GET, require_POST
 
-from learning.models import Course
+from learning.models import Course, Material
 
 from .forms import QuestionThemeForm, TopicModelForm
-from .models import AnalyticsEvent, AnalyzedQuestion, QuestionTheme
+from .models import AnalyticsEvent, AnalyticsQuestionnaire, AnalyticsQuestionnaireResponse, AnalyzedQuestion, QuestionTheme
 from .services.questions import backfill_relevant_questions, suggest_question_themes
+from .services.site_reporting import build_site_analytics_report
 from .services.tracking import track_event
 
 
@@ -24,19 +27,143 @@ THEME_REPORT_SESSION_KEY = "analytics_last_theme_report"
 @login_required
 @require_POST
 def track_event_view(request):
-    payload = json.loads(request.body or "{}")
+    try:
+        payload = json.loads(request.body or "{}")
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return JsonResponse({"error": "Invalid JSON payload."}, status=400)
     event_type = payload.get("event_type", AnalyticsEvent.EventType.CLICK)
-    path = payload.get("path", request.path)
-    duration_seconds = int(payload.get("duration_seconds") or 0)
+    if event_type not in AnalyticsEvent.EventType.values:
+        return JsonResponse({"error": "Unsupported analytics event type."}, status=400)
+    path = str(payload.get("path", request.path))[:255]
+    try:
+        duration_seconds = int(payload.get("duration_seconds") or 0)
+    except (TypeError, ValueError):
+        duration_seconds = 0
     metadata = payload.get("metadata") or {}
+    if not isinstance(metadata, dict):
+        return JsonResponse({"error": "Metadata must be an object."}, status=400)
+    metadata = {str(key)[:80]: value for key, value in list(metadata.items())[:24]}
+    if len(json.dumps(metadata)) > 8192:
+        return JsonResponse({"error": "Metadata is too large."}, status=400)
+    material = None
+    href_path = metadata.get("href_path")
+    if isinstance(href_path, str) and href_path.startswith("/") and not metadata.get("outbound"):
+        try:
+            match = resolve(href_path)
+            if match.view_name in {
+                "learning:material_detail",
+                "learning:material_file_preview",
+                "learning:material_serpapi_transcript",
+            }:
+                material = Material.objects.filter(pk=match.kwargs.get("pk")).first()
+        except Resolver404:
+            pass
+    if material:
+        metadata["action_label"] = metadata.get("label", "Open material")
+        metadata["label"] = material.analytics_label
     track_event(
         user=request.user,
         event_type=event_type,
         path=path,
         duration_seconds=duration_seconds,
         metadata=metadata,
+        material=material,
     )
     return JsonResponse({"status": "ok"})
+
+
+@login_required
+@require_POST
+def questionnaire_submit_view(request, pk):
+    questionnaire = get_object_or_404(
+        AnalyticsQuestionnaire.objects.prefetch_related("questions"),
+        pk=pk,
+        is_active=True,
+        reviewed_at__isnull=False,
+    )
+    if request.POST.get("consent") != "yes":
+        return JsonResponse({"error": "Explicit consent is required to submit this questionnaire."}, status=400)
+
+    answers = {}
+    errors = {}
+    for question in questionnaire.questions.all():
+        if question.question_type == question.QuestionType.MULTISELECT:
+            value = [item[:200] for item in request.POST.getlist(question.key)[:20]]
+        else:
+            value = request.POST.get(question.key, "").strip()[:500]
+        if question.is_required and not value:
+            errors[question.key] = "This question is required."
+            continue
+        allowed = question.choice_options
+        if allowed and value:
+            submitted = value if isinstance(value, list) else [value]
+            if any(item not in allowed for item in submitted):
+                errors[question.key] = "Choose one of the configured options."
+                continue
+        if value:
+            answers[question.key] = value
+    if errors:
+        return JsonResponse({"error": "Please review the questionnaire.", "fields": errors}, status=400)
+
+    browser_timezone = request.POST.get("browser_timezone", "")[:80]
+    if browser_timezone:
+        answers["browser_timezone"] = browser_timezone
+    AnalyticsQuestionnaireResponse.objects.update_or_create(
+        questionnaire=questionnaire,
+        user=request.user,
+        defaults={
+            "answers": answers,
+            "consent_given": True,
+            "consented_at": timezone.now(),
+            "consent_version": questionnaire.updated_at.isoformat(),
+        },
+    )
+    return JsonResponse({"status": "ok"})
+
+
+@login_required
+@require_POST
+def questionnaire_withdraw_view(request, pk):
+    AnalyticsQuestionnaireResponse.objects.filter(pk=pk, user=request.user).delete()
+    messages.success(request, "Your analytics questionnaire response and consent record were deleted.")
+    next_url = request.POST.get("next", "")
+    if not url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+        next_url = "/accounts/profile/"
+    return redirect(next_url)
+
+
+@login_required
+@require_GET
+def site_analytics_view(request):
+    days = int(request.GET.get("days", 30)) if request.GET.get("days", "30").isdigit() else 30
+    days = days if days in {7, 30, 90} else 30
+    selected_user = request.GET.get("user", "")
+    context = build_site_analytics_report(
+        requesting_user=request.user,
+        days=days,
+        selected_user=selected_user,
+    )
+    return render(request, "analytics_app/site_analytics.html", context)
+
+
+@login_required
+@require_GET
+def ethics_surveys_view(request):
+    if not (request.user.is_staff or request.user.is_superuser or getattr(request.user, "role", "") == "admin"):
+        raise PermissionDenied("Ethics and survey configuration is available to administrators only.")
+    questionnaires = (
+        AnalyticsQuestionnaire.objects.select_related("created_by", "reviewed_by")
+        .prefetch_related("questions")
+        .annotate(question_count=Count("questions", distinct=True), response_count=Count("responses", distinct=True))
+    )
+    return render(
+        request,
+        "analytics_app/ethics_surveys.html",
+        {
+            "questionnaires": questionnaires,
+            "active_questionnaire": questionnaires.filter(is_active=True, reviewed_at__isnull=False).first(),
+        },
+    )
 
 
 def manageable_courses(user):
@@ -120,6 +247,15 @@ def question_analytics_view(request):
             "question_count": theme.question_count,
             "backend": theme.model_backend or "Manual",
             "keywords": keywords_by_label.get(theme.label, ""),
+            "questions": [
+                {
+                    "text": item.text,
+                    "student": str(item.message.session.student) if item.message_id else "Source message removed",
+                    "created_at": item.created_at,
+                    "confidence": item.relevance_score,
+                }
+                for item in questions.filter(theme=theme).select_related("message__session__student")[:20]
+            ],
         }
         for theme in theme_list
     ]

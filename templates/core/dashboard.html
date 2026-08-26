@@ -43,7 +43,7 @@
                                     <span class="recommendation-flip__course">{{ recommendation.material.course.code }}</span>
                                 </div>
                                 <div>
-                                    <p class="recommendation-flip__label">Recommended resource</p>
+                                    <p class="recommendation-flip__label">{{ recommendation.material.content_descriptor }}</p>
                                     <h4>{{ recommendation.material.title }}</h4>
                                     <p>{{ recommendation.reason|default:"Selected to support your current learning goals."|truncatechars:115 }}</p>
                                 </div>
@@ -94,7 +94,7 @@
                                     <span class="recommendation-flip__course">{{ material.course.code }}</span>
                                 </div>
                                 <div>
-                                    <p class="recommendation-flip__label">Available material</p>
+                                    <p class="recommendation-flip__label">{{ material.content_descriptor }}</p>
                                     <h4>{{ material.title }}</h4>
                                     <p>{{ material.get_source_type_display }} · {{ material.source_bucket }}</p>
                                 </div>

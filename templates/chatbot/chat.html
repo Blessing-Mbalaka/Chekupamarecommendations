@@ -38,7 +38,7 @@
                                         <span class="source-number">{{ source.number }}</span>
                                         <div>
                                             <div class="source-title-row">
-                                                <strong>{{ source.title }}</strong>
+                                                <strong>{{ source.display_label|default:source.title }}</strong>
                                                 <span class="origin-badge origin-badge--{{ source.origin }}">{{ source.origin_label }}</span>
                                             </div>
                                             <p>{{ source.provider|default:"UJ course library" }} · {{ source.preview_kind|title }} · {{ source.score }} match</p>
@@ -102,7 +102,7 @@
                                         <span class="external-result-number">{{ source.number }}</span>
                                         <div class="external-result-content">
                                             <div class="source-title-row">
-                                                <strong>{{ source.title }}</strong>
+                                                <strong>{{ source.display_label|default:source.title }}</strong>
                                                 <span class="origin-badge origin-badge--external">Additional material</span>
                                             </div>
                                             <p>{{ source.provider|default:"External provider" }} · {{ source.source_type }}</p>

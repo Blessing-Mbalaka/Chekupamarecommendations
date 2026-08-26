@@ -25,6 +25,7 @@ def _material_payload(material: Material, *, number=None, score=0, role="source"
         "number": number,
         "material_id": material.pk,
         "title": material.title,
+        "display_label": material.analytics_label,
         "score": score,
         "url": material.get_absolute_url(),
         "external_url": _safe_link(material.effective_source_url),

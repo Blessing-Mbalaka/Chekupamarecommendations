@@ -18,4 +18,38 @@
         <button type="submit" class="primary-button">Save profile</button>
     </form>
 </section>
+{% if analytics_questionnaire %}
+<section class="profile-survey-card" aria-labelledby="profile-survey-title">
+    <div class="profile-survey-card__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" focusable="false"><path d="M12 2 4 5v6c0 5.05 3.41 9.77 8 11 4.59-1.23 8-5.95 8-11V5zm0 2.13 6 2.25V11c0 3.94-2.5 7.73-6 8.86C8.5 18.73 6 14.94 6 11V6.38zM11 8h2v5h-2zm0 6.5h2v2h-2z"/></svg>
+    </div>
+    <div class="profile-survey-card__copy">
+        <p class="eyebrow">Ethics-approved request</p>
+        <h3 id="profile-survey-title">Help improve LMS access</h3>
+        <p>{{ analytics_questionnaire.purpose }}</p>
+        <div class="profile-survey-card__meta">
+            <span>{{ analytics_questionnaire.questions.count }} optional questions</span>
+            <span>No precise location</span>
+            <span>Withdraw anytime</span>
+        </div>
+    </div>
+    <button type="button" class="primary-button" data-survey-open data-analytics-label="Open ethics questionnaire">Review and participate</button>
+</section>
+{% endif %}
+{% if analytics_responses %}
+<section class="panel privacy-profile-panel">
+    <p class="eyebrow">Privacy and consent</p>
+    <h3>Your optional analytics responses</h3>
+    <p class="muted">You may withdraw consent and permanently delete a questionnaire response at any time.</p>
+    {% for response in analytics_responses %}
+        <div class="privacy-response-row">
+            <div><strong>{{ response.questionnaire.title }}</strong><span>Consented {{ response.consented_at|date:"d M Y, H:i" }}</span></div>
+            <form method="post" action="{% url 'analytics_app:questionnaire_withdraw' response.pk %}">
+                {% csrf_token %}<input type="hidden" name="next" value="{{ request.path }}">
+                <button class="text-button text-button--danger" type="submit">Withdraw and delete</button>
+            </form>
+        </div>
+    {% endfor %}
+</section>
+{% endif %}
 {% endblock %}
