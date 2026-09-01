@@ -31,7 +31,7 @@ DEBUG = True
 
 _configured_allowed_hosts = {
     host.strip()
-    for host in os.getenv("DJANGO_ALLOWED_HOSTS", "127.0.0.1,localhost,testserver").split(",")
+    for host in os.getenv("DJANGO_ALLOWED_HOSTS", "127.0.0.1,localhost,testserver,162.35.180.105,vps3575203.trouble-free.net").split(",")
     if host.strip()
 }
 ALLOWED_HOSTS = sorted(_configured_allowed_hosts | {"127.0.0.1", "localhost", "testserver"})
