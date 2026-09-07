@@ -77,7 +77,8 @@ class AssessmentServiceTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], "application/pdf")
         self.assertIn("inline; filename=\"W123.pdf\"", response["Content-Disposition"])
-        self.assertEqual(response["X-Frame-Options"], "SAMEORIGIN")
+        self.assertNotIn("X-Frame-Options", response)
+        self.assertEqual(response["Content-Security-Policy"], "frame-ancestors 'self'")
 
     def test_openalex_material_gets_same_origin_pdf_preview(self):
         material = Material.objects.create(
@@ -107,7 +108,8 @@ class AssessmentServiceTests(TestCase):
 
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response["Content-Type"], "application/pdf")
-            self.assertEqual(response["X-Frame-Options"], "SAMEORIGIN")
+            self.assertNotIn("X-Frame-Options", response)
+            self.assertEqual(response["Content-Security-Policy"], "frame-ancestors 'self'")
             response.close()
 
     @patch("learning.views.urllib_request.urlopen")

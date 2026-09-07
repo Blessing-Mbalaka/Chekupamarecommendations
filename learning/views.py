@@ -1,7 +1,7 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
-from django.views.decorators.clickjacking import xframe_options_sameorigin
+from django.views.decorators.clickjacking import xframe_options_exempt
 from django.http import FileResponse, Http404, HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -78,17 +78,19 @@ def material_serpapi_transcript_view(request, pk):
 
 
 @login_required
-@xframe_options_sameorigin
+@xframe_options_exempt
 def material_file_preview_view(request, pk):
     material = get_object_or_404(Material, pk=pk, is_validated=True)
     if not material.file or not material.file.name.lower().endswith(".pdf"):
         raise Http404("No previewable PDF is stored for this material.")
-    return FileResponse(
+    response = FileResponse(
         material.file.open("rb"),
         content_type="application/pdf",
         as_attachment=False,
         filename=material.file.name.rsplit("/", 1)[-1],
     )
+    response["Content-Security-Policy"] = "frame-ancestors 'self'"
+    return response
 
 
 @login_required
@@ -297,7 +299,7 @@ def quiz_result_view(request, attempt_pk):
 
 
 @login_required
-@xframe_options_sameorigin
+@xframe_options_exempt
 def openalex_pdf_proxy_view(request, work_id):
     fallback_url = _safe_fallback_url(request.GET.get("fallback", ""), work_id)
     if not OPENALEX_API_KEY:
@@ -313,6 +315,7 @@ def openalex_pdf_proxy_view(request, work_id):
             upstream_content_type = response.headers.get("Content-Type", "application/pdf")
         proxy_response = HttpResponse(pdf_bytes, content_type=upstream_content_type)
         proxy_response["Content-Disposition"] = f'inline; filename="{work_id}.pdf"'
+        proxy_response["Content-Security-Policy"] = "frame-ancestors 'self'"
         return proxy_response
     except HTTPError as exc:
         return redirect(fallback_url)
