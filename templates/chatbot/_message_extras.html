@@ -1,0 +1,119 @@
+{% if message.metadata.sources %}
+    <div class="inline-sources">
+        <div class="inline-sources__heading">
+            <strong>Materials used</strong>
+            <span>{{ message.metadata.sources|length }} grounded source{{ message.metadata.sources|length|pluralize }}</span>
+        </div>
+        {% for source in message.metadata.sources %}
+            <article class="source-preview source-preview--{{ source.preview_kind }}">
+                <div class="source-preview__meta">
+                    <span class="source-number">{{ source.number }}</span>
+                    <div>
+                        <div class="source-title-row">
+                            <strong>{{ source.display_label|default:source.title }}</strong>
+                            <span class="origin-badge origin-badge--{{ source.origin }}">{{ source.origin_label }}</span>
+                        </div>
+                        <p>{{ source.provider|default:"UJ course library" }} · {{ source.preview_kind|title }} · {{ source.score }} match</p>
+                        {% if source.authors or source.publication %}<p>{{ source.authors }}{% if source.authors and source.publication %} · {% endif %}{{ source.publication }}</p>{% endif %}
+                    </div>
+                </div>
+
+                {% if source.preview_kind == "video" and source.preview_url %}
+                    <div class="media-frame media-frame--video">
+                        <iframe
+                            src="{{ source.preview_url }}"
+                            title="Video preview: {{ source.title }}"
+                            loading="lazy"
+                            referrerpolicy="strict-origin-when-cross-origin"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                            allowfullscreen>
+                        </iframe>
+                    </div>
+                {% elif source.preview_kind == "pdf" and source.preview_url %}
+                    <div class="media-frame media-frame--pdf">
+                        <iframe
+                            src="{{ source.preview_url }}#view=FitH&toolbar=1"
+                            title="PDF preview: {{ source.title }}"
+                            loading="lazy">
+                        </iframe>
+                    </div>
+                {% else %}
+                    <div class="link-preview">
+                        <span class="link-preview__icon" aria-hidden="true">↗</span>
+                        <p>This provider page cannot be guaranteed to allow secure iframe embedding. Open it in a new tab.</p>
+                    </div>
+                {% endif %}
+
+                {% if source.topics %}
+                    <div class="source-topics">
+                        {% for topic in source.topics %}<span>{{ topic }}</span>{% endfor %}
+                    </div>
+                {% endif %}
+                <div class="source-actions">
+                    <a href="{{ source.url }}" class="text-link">View library record</a>
+                    {% if source.external_url %}
+                        <a href="{{ source.external_url }}" target="_blank" rel="noopener noreferrer" class="text-link">Open original ↗</a>
+                    {% endif %}
+                </div>
+            </article>
+        {% endfor %}
+    </div>
+{% elif message.metadata.rag_only and not message.metadata.grounded %}
+    <div class="grounding-notice">No indexed source matched, so no outside knowledge was used.</div>
+{% endif %}
+
+{% if message.metadata.external_suggestions %}
+    <div class="inline-sources external-suggestions">
+        <div class="inline-sources__heading">
+            <strong>Additional learning material</strong>
+            <span>Optional and ungraded — explore these resources to deepen your understanding.</span>
+        </div>
+        <div class="external-result-list">
+            {% for source in message.metadata.external_suggestions %}
+                <article class="external-result-bubble">
+                    <span class="external-result-number">{{ source.number }}</span>
+                    <div class="external-result-content">
+                        <div class="source-title-row">
+                            <strong>{{ source.display_label|default:source.title }}</strong>
+                            <span class="origin-badge origin-badge--external">Additional material</span>
+                        </div>
+                        <p>{{ source.provider|default:"External provider" }} · {{ source.source_type }}</p>
+                        {% if source.authors or source.publication %}<p>{{ source.authors }}{% if source.authors and source.publication %} · {% endif %}{{ source.publication }}</p>{% endif %}
+                        <div class="source-actions">
+                            {% if source.external_url %}<a href="{{ source.external_url }}" target="_blank" rel="noopener noreferrer" class="text-link">Visit source</a>{% endif %}
+                            {% if source.preview_kind == "pdf" and source.preview_url %}<a href="{{ source.preview_url }}" target="_blank" rel="noopener noreferrer" class="text-link">View / download PDF</a>{% endif %}
+                            <a href="{{ source.url }}" class="text-link">Library record</a>
+                        </div>
+                        {% if source.preview_url %}
+                            <details class="external-inline-preview">
+                                <summary>Preview here</summary>
+                                <div class="media-frame media-frame--{{ source.preview_kind }}">
+                                    <iframe
+                                        src="{{ source.preview_url }}{% if source.preview_kind == 'pdf' %}#view=FitH&toolbar=1{% endif %}"
+                                        title="Preview: {{ source.title }}"
+                                        loading="lazy"
+                                        referrerpolicy="strict-origin-when-cross-origin"
+                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                        allowfullscreen>
+                                    </iframe>
+                                </div>
+                            </details>
+                        {% endif %}
+                    </div>
+                </article>
+            {% endfor %}
+        </div>
+    </div>
+{% endif %}
+
+{% if message.metadata.provider_statuses %}
+    <details class="provider-trace">
+        <summary>Academic API discovery</summary>
+        <div class="provider-trace__items">
+            {% for provider in message.metadata.provider_statuses %}
+                <span class="provider-badge provider-badge--{{ provider.status }}" title="{{ provider.message }}">{{ provider.name }}: {{ provider.count }}</span>
+            {% endfor %}
+        </div>
+        <p>Discovery results are external suggestions only. They become answer evidence after full text is uploaded and indexed.</p>
+    </details>
+{% endif %}

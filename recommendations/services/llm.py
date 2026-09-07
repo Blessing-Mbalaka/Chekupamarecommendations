@@ -56,12 +56,27 @@ def generate_chat_text(system_instruction: str, contents: list[str]) -> tuple[st
         response = ollama.generate_text(
             system_instruction,
             "\n".join(contents),
-            model=ollama.OLLAMA_FAST_TEXT_MODEL,
-            timeout_seconds=min(ollama.OLLAMA_TEXT_TIMEOUT, 2),
+            model=ollama.OLLAMA_TEXT_MODEL,
+            timeout_seconds=ollama.OLLAMA_TEXT_TIMEOUT,
         )
         if response:
             return response, "ollama"
     return "", "fallback"
+
+
+def generate_chat_text_stream(system_instruction: str, contents: list[str]):
+    if ollama.is_available():
+        return (
+            ollama.generate_text_stream(
+                system_instruction,
+                "\n".join(contents),
+                model=ollama.OLLAMA_TEXT_MODEL,
+                timeout_seconds=ollama.OLLAMA_TEXT_TIMEOUT,
+            ),
+            "ollama",
+        )
+    response, backend = generate_chat_text(system_instruction, contents)
+    return iter([response] if response else []), backend
 
 
 def embed_text(text: str) -> tuple[list[float], str]:
@@ -74,3 +89,27 @@ def embed_text(text: str) -> tuple[list[float], str]:
         if embedding:
             return embedding, "ollama"
     return [], "fallback"
+
+
+def embed_texts(texts: list[str]) -> list[tuple[list[float], str]]:
+    if not texts:
+        return []
+    if len(texts) == 1:
+        return [embed_text(texts[0])]
+    if gemini.is_configured():
+        embeddings = gemini.embed_texts(texts)
+        if len(embeddings) == len(texts) and all(embeddings):
+            return [(embedding, "gemini") for embedding in embeddings]
+    if ollama.is_available():
+        embeddings = ollama.embed_texts(texts)
+        if len(embeddings) == len(texts) and all(embeddings):
+            return [(embedding, "ollama") for embedding in embeddings]
+    return [([], "fallback") for _ in texts]
+
+
+def embedding_model_name(backend: str) -> str:
+    if backend == "gemini":
+        return gemini.GEMINI_EMBED_MODEL
+    if backend == "ollama":
+        return ollama.OLLAMA_EMBED_MODEL
+    return ""

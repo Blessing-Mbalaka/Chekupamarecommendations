@@ -1,3 +1,4 @@
+import json
 from unittest.mock import patch
 
 from django.core.cache import cache
@@ -80,6 +81,9 @@ class ChatbotFlowTests(TestCase):
         self.assertContains(response, "Prescribed material")
         self.assertContains(response, "Explain mechanics force", count=1)
         self.assertContains(response, "content--chat")
+        self.assertContains(response, "data-render-markdown")
+        self.assertContains(response, "mathjax@3.2.2")
+        self.assertContains(response, "data-stream-url")
 
     @patch("chatbot.services.chat_engine._refresh_academic_discovery", return_value={"statuses": [], "material_ids": []})
     @patch("chatbot.services.chat_engine.backend_status", return_value={"gemini": False, "ollama": False, "ollama_models": []})
@@ -169,6 +173,27 @@ class ChatbotFlowTests(TestCase):
         self.assertEqual(len(matches), 1)
         self.assertEqual(matches[0]["material"].pk, self.material.pk)
 
+    def test_select_matches_keeps_two_distant_passages_from_same_material(self):
+        first_chunk = ContentChunk.objects.create(
+            material=self.material,
+            ordinal=0,
+            text="Feedback loops can reinforce change.",
+        )
+        distant_chunk = ContentChunk.objects.create(
+            material=self.material,
+            ordinal=5,
+            text="System boundaries determine what an analysis includes.",
+        )
+        matches = _select_matches(
+            "feedback loops and boundaries",
+            [
+                {"chunk": first_chunk, "material": self.material, "score": 0.9, "text": first_chunk.text},
+                {"chunk": distant_chunk, "material": self.material, "score": 0.8, "text": distant_chunk.text},
+            ],
+        )
+
+        self.assertEqual(len(matches), 2)
+
     def test_video_query_returns_single_video_match(self):
         ContentChunk.objects.create(
             material=self.material,
@@ -201,6 +226,73 @@ class ChatbotFlowTests(TestCase):
 
         self.assertEqual(len(matches), 1)
         self.assertEqual(matches[0]["material"].pk, self.material.pk)
+
+    @patch("chatbot.views.stream_bot_response")
+    def test_stream_endpoint_persists_completed_answer(self, mock_stream):
+        mock_stream.return_value = iter(
+            [
+                {"type": "status", "text": "Searching…"},
+                {"type": "token", "text": "**Feedback**"},
+                {
+                    "type": "complete",
+                    "payload": {
+                        "text": "**Feedback**",
+                        "metadata": {
+                            "rag_only": True,
+                            "grounded": True,
+                            "response_backend": "ollama",
+                            "sources": [
+                                {
+                                    "number": 1,
+                                    "material_id": self.material.pk,
+                                    "title": self.material.title,
+                                    "display_label": self.material.title,
+                                    "score": 0.91,
+                                    "url": self.material.get_absolute_url(),
+                                    "external_url": self.material.external_url,
+                                    "preview_kind": "video",
+                                    "preview_url": self.material.embed_url,
+                                    "provider": "YouTube",
+                                    "source_type": "Video",
+                                    "authors": "",
+                                    "publication": "",
+                                    "topics": [],
+                                    "origin": "external",
+                                    "origin_label": "Additional material",
+                                }
+                            ],
+                            "external_suggestions": [],
+                            "provider_statuses": [],
+                        },
+                    },
+                },
+            ]
+        )
+        self.client.login(username="student3", password="password123")
+
+        response = self.client.post(
+            reverse("chatbot:chat_stream"),
+            {"message": "Explain feedback"},
+        )
+        body = b"".join(response.streaming_content).decode("utf-8")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('"type": "token"', body)
+        self.assertIn('"type": "done"', body)
+        done_event = next(
+            json.loads(line)
+            for line in body.splitlines()
+            if json.loads(line).get("type") == "done"
+        )
+        self.assertIn("source-preview--video", done_event["extras_html"])
+        self.assertIn("youtube-nocookie.com/embed/fixtureVideo123", done_event["extras_html"])
+        self.assertTrue(
+            ChatMessage.objects.filter(
+                session__student=self.student,
+                sender=ChatMessage.Sender.BOT,
+                content="**Feedback**",
+            ).exists()
+        )
 
     @patch("chatbot.services.chat_engine._refresh_academic_discovery")
     @patch("chatbot.services.chat_engine.backend_status", return_value={})

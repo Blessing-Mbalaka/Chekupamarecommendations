@@ -125,8 +125,15 @@ class ContentChunk(models.Model):
     )
     ordinal = models.PositiveIntegerField(default=0)
     text = models.TextField()
+    content_hash = models.CharField(max_length=64, blank=True, db_index=True)
+    token_count = models.PositiveIntegerField(default=0)
+    page_number = models.PositiveIntegerField(null=True, blank=True)
+    section_title = models.CharField(max_length=500, blank=True)
+    chunking_strategy = models.CharField(max_length=80, default="legacy-fixed-window")
     embedding = models.JSONField(default=list, blank=True)
     embedding_backend = models.CharField(max_length=120, blank=True)
+    embedding_model = models.CharField(max_length=120, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

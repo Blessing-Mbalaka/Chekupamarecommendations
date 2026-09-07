@@ -24,7 +24,11 @@
                         <strong>{% if message.sender == "student" %}You{% else %}UJ Study Assistant{% endif %}</strong>
                         <time datetime="{{ message.created_at|date:'c' }}">{{ message.created_at|date:"H:i" }}</time>
                     </div>
-                    <div class="conversation-copy">{{ message.content|linebreaksbr }}</div>
+                    {% if message.sender == "bot" %}
+                        <div class="conversation-copy" data-render-markdown>{{ message.content }}</div>
+                    {% else %}
+                        <div class="conversation-copy">{{ message.content|linebreaksbr }}</div>
+                    {% endif %}
 
                     {% if message.sender == "bot" and message.metadata.sources %}
                         <div class="inline-sources">
@@ -161,7 +165,7 @@
         {% endfor %}
     </div>
 
-    <form method="post" class="chat-composer" id="chat-form">
+    <form method="post" class="chat-composer" id="chat-form" data-stream-url="{% url 'chatbot:chat_stream' %}">
         {% csrf_token %}
         <label class="sr-only" for="{{ form.message.id_for_label }}">Message</label>
         {{ form.message }}
@@ -175,10 +179,194 @@
 
 {% block extra_scripts %}
 <script>
+    window.MathJax = {
+        tex: {
+            inlineMath: [["\\(", "\\)"]],
+            displayMath: [["\\[", "\\]"], ["$$", "$$"]],
+            processEscapes: true
+        },
+        options: {
+            skipHtmlTags: ["script", "noscript", "style", "textarea", "pre", "code"]
+        }
+    };
+</script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js"></script>
+<script>
     (() => {
+        const appendInlineMarkdown = (parent, value) => {
+            const pattern = /(\*\*[^*\n]+\*\*|\`[^\`\n]+\`|\\\([^\n]*?\\\)|\[Source\s+\d+\]|\*[^*\n]+\*)/g;
+            let cursor = 0;
+            value.replace(pattern, (token, _capture, offset) => {
+                parent.append(document.createTextNode(value.slice(cursor, offset)));
+                let element;
+                if (token.startsWith("**")) {
+                    element = document.createElement("strong");
+                    element.textContent = token.slice(2, -2);
+                } else if (token.startsWith("\`")) {
+                    element = document.createElement("code");
+                    element.textContent = token.slice(1, -1);
+                } else if (/^\[Source\s+\d+\]$/.test(token)) {
+                    element = document.createElement("span");
+                    element.className = "source-citation";
+                    element.textContent = token;
+                } else if (token.startsWith("*")) {
+                    element = document.createElement("em");
+                    element.textContent = token.slice(1, -1);
+                } else {
+                    element = document.createTextNode(token);
+                }
+                parent.append(element);
+                cursor = offset + token.length;
+                return token;
+            });
+            parent.append(document.createTextNode(value.slice(cursor)));
+        };
+
+        const renderMarkdown = (container) => {
+            const lines = container.textContent.replace(/\r\n?/g, "\n").split("\n");
+            const fragment = document.createDocumentFragment();
+            let paragraph = [];
+            let list = null;
+            let codeLines = null;
+            let equationLines = null;
+            let equationEnd = "";
+
+            const flushParagraph = () => {
+                if (!paragraph.length) return;
+                const element = document.createElement("p");
+                appendInlineMarkdown(element, paragraph.join(" ").trim());
+                fragment.append(element);
+                paragraph = [];
+            };
+            const closeList = () => {
+                list = null;
+            };
+            const addListItem = (kind, value) => {
+                flushParagraph();
+                if (!list || list.tagName.toLowerCase() !== kind) {
+                    list = document.createElement(kind);
+                    fragment.append(list);
+                }
+                const item = document.createElement("li");
+                appendInlineMarkdown(item, value);
+                list.append(item);
+            };
+
+            lines.forEach((line) => {
+                const trimmed = line.trim();
+                if (codeLines !== null) {
+                    if (trimmed.startsWith("\`\`\`")) {
+                        const pre = document.createElement("pre");
+                        const code = document.createElement("code");
+                        code.textContent = codeLines.join("\n");
+                        pre.append(code);
+                        fragment.append(pre);
+                        codeLines = null;
+                    } else {
+                        codeLines.push(line);
+                    }
+                    return;
+                }
+                if (equationLines !== null) {
+                    equationLines.push(line);
+                    if (trimmed.endsWith(equationEnd)) {
+                        const equation = document.createElement("div");
+                        equation.className = "math-display";
+                        equation.textContent = equationLines.join("\n");
+                        fragment.append(equation);
+                        equationLines = null;
+                    }
+                    return;
+                }
+                if (trimmed.startsWith("\`\`\`")) {
+                    flushParagraph();
+                    closeList();
+                    codeLines = [];
+                    return;
+                }
+                if ((trimmed.startsWith("$$") && !trimmed.endsWith("$$")) || trimmed === "$$") {
+                    flushParagraph();
+                    closeList();
+                    equationLines = [line];
+                    equationEnd = "$$";
+                    return;
+                }
+                if (trimmed.startsWith("\\[") && !trimmed.endsWith("\\]")) {
+                    flushParagraph();
+                    closeList();
+                    equationLines = [line];
+                    equationEnd = "\\]";
+                    return;
+                }
+                if (!trimmed) {
+                    flushParagraph();
+                    closeList();
+                    return;
+                }
+                const heading = trimmed.match(/^(#{1,4})\s+(.+)$/);
+                if (heading) {
+                    flushParagraph();
+                    closeList();
+                    const element = document.createElement(`h${Math.min(heading[1].length + 2, 6)}`);
+                    appendInlineMarkdown(element, heading[2]);
+                    fragment.append(element);
+                    return;
+                }
+                const ordered = trimmed.match(/^\d+[.)]\s+(.+)$/);
+                if (ordered) {
+                    addListItem("ol", ordered[1]);
+                    return;
+                }
+                const unordered = trimmed.match(/^[-*]\s+(.+)$/);
+                if (unordered) {
+                    addListItem("ul", unordered[1]);
+                    return;
+                }
+                closeList();
+                paragraph.push(trimmed);
+            });
+            if (codeLines !== null) {
+                paragraph.push("\`\`\`", ...codeLines);
+            }
+            if (equationLines !== null) {
+                paragraph.push(...equationLines);
+            }
+            flushParagraph();
+            container.replaceChildren(fragment);
+        };
+
+        document.querySelectorAll("[data-render-markdown]").forEach(renderMarkdown);
+
         const conversation = document.getElementById("chat-conversation");
         const form = document.getElementById("chat-form");
         const input = form?.querySelector("textarea");
+        const sendButton = form?.querySelector(".chat-send");
+        const appendLiveTurn = (sender, text) => {
+            conversation?.querySelector(".chat-empty")?.remove();
+            const turn = document.createElement("article");
+            turn.className = `conversation-turn conversation-turn--${sender}`;
+            const avatar = document.createElement("div");
+            avatar.className = "conversation-avatar";
+            avatar.setAttribute("aria-hidden", "true");
+            avatar.textContent = sender === "student" ? "{{ user.username|first|upper|escapejs }}" : "UJ";
+            const body = document.createElement("div");
+            body.className = "conversation-body";
+            const meta = document.createElement("div");
+            meta.className = "conversation-meta";
+            const author = document.createElement("strong");
+            author.textContent = sender === "student" ? "You" : "UJ Study Assistant";
+            const time = document.createElement("time");
+            time.textContent = new Date().toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"});
+            meta.append(author, time);
+            const copy = document.createElement("div");
+            copy.className = "conversation-copy";
+            copy.textContent = text;
+            body.append(meta, copy);
+            turn.append(avatar, body);
+            conversation?.append(turn);
+            conversation.scrollTop = conversation.scrollHeight;
+            return copy;
+        };
         if (conversation) conversation.scrollTop = conversation.scrollHeight;
         input?.addEventListener("keydown", (event) => {
             if (event.key === "Enter" && !event.shiftKey) {
@@ -191,6 +379,73 @@
                 input.value = button.dataset.prompt;
                 input.focus();
             });
+        });
+        form?.addEventListener("submit", async (event) => {
+            if (!window.fetch || !window.ReadableStream || !form.dataset.streamUrl || !input.value.trim()) {
+                return;
+            }
+            event.preventDefault();
+            const studentText = input.value.trim();
+            const formData = new FormData(form);
+            appendLiveTurn("student", studentText);
+            const botCopy = appendLiveTurn("bot", "Searching the indexed course library…");
+            botCopy.classList.add("conversation-copy--streaming");
+            input.value = "";
+            input.disabled = true;
+            sendButton.disabled = true;
+            let answer = "";
+            let pending = "";
+            try {
+                const response = await fetch(form.dataset.streamUrl, {
+                    method: "POST",
+                    body: formData,
+                    credentials: "same-origin",
+                    headers: {"X-Requested-With": "XMLHttpRequest"}
+                });
+                if (!response.ok || !response.body) throw new Error("Streaming response unavailable");
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let finished = false;
+                while (!finished) {
+                    const result = await reader.read();
+                    finished = result.done;
+                    pending += decoder.decode(result.value || new Uint8Array(), {stream: !finished});
+                    const lines = pending.split("\n");
+                    pending = lines.pop() || "";
+                    for (const line of lines) {
+                        if (!line.trim()) continue;
+                        const eventData = JSON.parse(line);
+                        if (eventData.type === "status" && !answer) {
+                            botCopy.textContent = eventData.text;
+                        } else if (eventData.type === "token") {
+                            answer += eventData.text;
+                            botCopy.textContent = answer;
+                            conversation.scrollTop = conversation.scrollHeight;
+                        } else if (eventData.type === "error") {
+                            throw new Error(eventData.text);
+                        } else if (eventData.type === "done") {
+                            botCopy.classList.remove("conversation-copy--streaming");
+                            renderMarkdown(botCopy);
+                            if (eventData.extras_html) {
+                                const extras = document.createElement("template");
+                                extras.innerHTML = eventData.extras_html;
+                                botCopy.parentElement.append(extras.content);
+                            }
+                            if (window.MathJax?.typesetPromise) {
+                                window.MathJax.typesetPromise([botCopy]).catch(() => {});
+                            }
+                            conversation.scrollTop = conversation.scrollHeight;
+                        }
+                    }
+                }
+            } catch (error) {
+                botCopy.classList.remove("conversation-copy--streaming");
+                botCopy.textContent = error.message || "The response stream stopped. Please try again.";
+            } finally {
+                input.disabled = false;
+                sendButton.disabled = false;
+                input.focus();
+            }
         });
     })();
 </script>

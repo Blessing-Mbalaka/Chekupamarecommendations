@@ -9,7 +9,7 @@ OLLAMA_TEXT_MODEL = os.getenv("OLLAMA_TEXT_MODEL", "ministral-3:3b")
 OLLAMA_FAST_TEXT_MODEL = os.getenv("OLLAMA_FAST_TEXT_MODEL", "tinyllama:latest")
 OLLAMA_EMBED_MODEL = os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text:latest")
 OLLAMA_TAGS_TIMEOUT = float(os.getenv("OLLAMA_TAGS_TIMEOUT_SECONDS", "1"))
-OLLAMA_TEXT_TIMEOUT = float(os.getenv("OLLAMA_TEXT_TIMEOUT_SECONDS", "2"))
+OLLAMA_TEXT_TIMEOUT = float(os.getenv("OLLAMA_TEXT_TIMEOUT_SECONDS", "180"))
 OLLAMA_EMBED_TIMEOUT = float(os.getenv("OLLAMA_EMBED_TIMEOUT_SECONDS", "2"))
 OLLAMA_MODELS_TTL_SECONDS = float(os.getenv("OLLAMA_MODELS_TTL_SECONDS", "15"))
 MODEL_CACHE = {"models": [], "fetched_at": 0.0}
@@ -56,12 +56,50 @@ def generate_text(system_instruction: str, prompt: str, *, model: str | None = N
         "system": system_instruction,
         "prompt": prompt,
         "stream": False,
+        "keep_alive": "30m",
+        "options": {"num_predict": 350},
     }
     try:
         data = _post_json(f"{OLLAMA_BASE_URL}/generate", payload, timeout_seconds or OLLAMA_TEXT_TIMEOUT)
     except (error.URLError, TimeoutError, ValueError):
         return ""
     return data.get("response", "").strip()
+
+
+def generate_text_stream(
+    system_instruction: str,
+    prompt: str,
+    *,
+    model: str | None = None,
+    timeout_seconds: float | None = None,
+):
+    payload = {
+        "model": model or OLLAMA_TEXT_MODEL,
+        "system": system_instruction,
+        "prompt": prompt,
+        "stream": True,
+        "keep_alive": "30m",
+        "options": {"num_predict": 350},
+    }
+    req = request.Request(
+        f"{OLLAMA_BASE_URL}/generate",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with request.urlopen(req, timeout=timeout_seconds or OLLAMA_TEXT_TIMEOUT) as response:
+            for raw_line in response:
+                if not raw_line.strip():
+                    continue
+                data = json.loads(raw_line.decode("utf-8"))
+                token = data.get("response", "")
+                if token:
+                    yield token
+                if data.get("done"):
+                    break
+    except (error.URLError, TimeoutError, ValueError):
+        return
 
 
 def embed_text(text: str):
@@ -77,3 +115,21 @@ def embed_text(text: str):
         return []
     embeddings = data.get("embeddings") or []
     return embeddings[0] if embeddings else []
+
+
+def embed_texts(texts: list[str], batch_size: int = 32) -> list[list[float]]:
+    if not texts or not is_available():
+        return []
+    results: list[list[float]] = []
+    for start in range(0, len(texts), batch_size):
+        batch = [text[:6000] for text in texts[start : start + batch_size]]
+        payload = {"model": OLLAMA_EMBED_MODEL, "input": batch}
+        try:
+            data = _post_json(f"{OLLAMA_BASE_URL}/embed", payload, max(OLLAMA_EMBED_TIMEOUT, 30))
+        except (error.URLError, TimeoutError, ValueError):
+            return []
+        embeddings = data.get("embeddings") or []
+        if len(embeddings) != len(batch):
+            return []
+        results.extend(embeddings)
+    return results

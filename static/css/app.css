@@ -1133,6 +1133,7 @@ input:focus, textarea:focus, select:focus, button:focus-visible, a:focus-visible
     cursor: pointer;
 }
 .chat-send svg { width: 21px; height: 21px; fill: currentColor; }
+.chat-send:disabled { cursor: wait; opacity: .55; }
 .chat-composer > p { grid-column: 1 / -1; margin: 0; color: #85868a; text-align: center; font-size: .72rem; }
 .inline-sources { display: grid; gap: 14px; margin-top: 22px; }
 .inline-sources__heading { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); font-size: .8rem; }
@@ -1367,6 +1368,70 @@ input:focus, textarea:focus, select:focus, button:focus-visible, a:focus-visible
     background: #dcf8cf;
 }
 .conversation-copy { line-height: 1.6; }
+.conversation-copy--streaming::after {
+    content: "";
+    display: inline-block;
+    width: .5em;
+    height: 1em;
+    margin-left: .2rem;
+    border-radius: 2px;
+    vertical-align: -.15em;
+    background: #ef5b21;
+    animation: stream-caret 900ms steps(1, end) infinite;
+}
+@keyframes stream-caret { 50% { opacity: 0; } }
+.conversation-copy p { margin: 0 0 .8rem; }
+.conversation-copy p:last-child { margin-bottom: 0; }
+.conversation-copy ol,
+.conversation-copy ul {
+    margin: .55rem 0 .9rem;
+    padding-left: 1.5rem;
+}
+.conversation-copy li { margin: .35rem 0; padding-left: .2rem; }
+.conversation-copy strong { color: #3a2418; font-weight: 800; }
+.conversation-copy em { color: #59483e; }
+.conversation-copy h3,
+.conversation-copy h4,
+.conversation-copy h5,
+.conversation-copy h6 {
+    margin: 1rem 0 .45rem;
+    color: #3a2418;
+    line-height: 1.25;
+}
+.conversation-copy code {
+    padding: .12rem .35rem;
+    border-radius: 5px;
+    color: #8e300a;
+    background: #f6eee8;
+    font-size: .9em;
+}
+.conversation-copy pre {
+    max-width: 100%;
+    padding: .85rem 1rem;
+    overflow-x: auto;
+    border-radius: 9px;
+    background: #2d2926;
+}
+.conversation-copy pre code { padding: 0; color: #fff; background: transparent; }
+.source-citation {
+    display: inline-block;
+    padding: .08rem .34rem;
+    border: 1px solid #f1c7af;
+    border-radius: 999px;
+    color: #91400d;
+    background: #fff5ef;
+    font-size: .82em;
+    font-weight: 800;
+    white-space: nowrap;
+}
+.math-display {
+    max-width: 100%;
+    margin: .8rem 0;
+    padding: .65rem .8rem;
+    overflow-x: auto;
+    border-left: 3px solid #ef5b21;
+    background: #fff9f5;
+}
 .conversation-meta { margin-bottom: 6px; }
 .conversation-meta strong { color: #9b380f; font-size: .84rem; }
 .conversation-turn--student .conversation-meta strong { color: #286518; }

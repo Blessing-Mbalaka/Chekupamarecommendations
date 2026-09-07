@@ -84,6 +84,36 @@ def embed_text(text: str):
     return data.get("embedding", {}).get("values", [])
 
 
+def embed_texts(texts: list[str], batch_size: int = 50) -> list[list[float]]:
+    if not texts or not is_configured():
+        return []
+    url = f"{GEMINI_API_ROOT}/{GEMINI_EMBED_MODEL}:batchEmbedContents?key={parse.quote(GEMINI_API_KEY)}"
+    results: list[list[float]] = []
+    for start in range(0, len(texts), batch_size):
+        batch = texts[start : start + batch_size]
+        payload = {
+            "requests": [
+                {
+                    "model": f"models/{GEMINI_EMBED_MODEL}",
+                    "content": {"parts": [{"text": text[:6000]}]},
+                }
+                for text in batch
+            ]
+        }
+        try:
+            data = _post_json(url, payload, max(GEMINI_EMBED_TIMEOUT, 30))
+        except (error.URLError, TimeoutError, ValueError):
+            _mark_failure()
+            return []
+        embeddings = [item.get("values", []) for item in data.get("embeddings", [])]
+        if len(embeddings) != len(batch) or not all(embeddings):
+            _mark_failure()
+            return []
+        results.extend(embeddings)
+    _mark_success()
+    return results
+
+
 def cosine_similarity(left, right) -> float:
     if not left or not right or len(left) != len(right):
         return 0.0
