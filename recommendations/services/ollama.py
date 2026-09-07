@@ -12,6 +12,11 @@ OLLAMA_TAGS_TIMEOUT = float(os.getenv("OLLAMA_TAGS_TIMEOUT_SECONDS", "1"))
 OLLAMA_TEXT_TIMEOUT = float(os.getenv("OLLAMA_TEXT_TIMEOUT_SECONDS", "180"))
 OLLAMA_EMBED_TIMEOUT = float(os.getenv("OLLAMA_EMBED_TIMEOUT_SECONDS", "2"))
 OLLAMA_MODELS_TTL_SECONDS = float(os.getenv("OLLAMA_MODELS_TTL_SECONDS", "15"))
+OLLAMA_TEMPERATURE = float(os.getenv("OLLAMA_TEMPERATURE", "0.2"))
+OLLAMA_TOP_P = float(os.getenv("OLLAMA_TOP_P", "0.9"))
+OLLAMA_TOP_K = int(os.getenv("OLLAMA_TOP_K", "40"))
+OLLAMA_REPEAT_PENALTY = float(os.getenv("OLLAMA_REPEAT_PENALTY", "1.1"))
+OLLAMA_NUM_PREDICT = int(os.getenv("OLLAMA_NUM_PREDICT", "500"))
 MODEL_CACHE = {"models": [], "fetched_at": 0.0}
 
 
@@ -48,6 +53,18 @@ def is_available() -> bool:
     return bool(list_models())
 
 
+def _generation_options() -> dict:
+    """Use one deterministic-leaning profile for sync and streamed RAG answers."""
+
+    return {
+        "temperature": OLLAMA_TEMPERATURE,
+        "top_p": OLLAMA_TOP_P,
+        "top_k": OLLAMA_TOP_K,
+        "repeat_penalty": OLLAMA_REPEAT_PENALTY,
+        "num_predict": OLLAMA_NUM_PREDICT,
+    }
+
+
 def generate_text(system_instruction: str, prompt: str, *, model: str | None = None, timeout_seconds: float | None = None) -> str:
     if not is_available():
         return ""
@@ -57,7 +74,7 @@ def generate_text(system_instruction: str, prompt: str, *, model: str | None = N
         "prompt": prompt,
         "stream": False,
         "keep_alive": "30m",
-        "options": {"num_predict": 350},
+        "options": _generation_options(),
     }
     try:
         data = _post_json(f"{OLLAMA_BASE_URL}/generate", payload, timeout_seconds or OLLAMA_TEXT_TIMEOUT)
@@ -79,7 +96,7 @@ def generate_text_stream(
         "prompt": prompt,
         "stream": True,
         "keep_alive": "30m",
-        "options": {"num_predict": 350},
+        "options": _generation_options(),
     }
     req = request.Request(
         f"{OLLAMA_BASE_URL}/generate",

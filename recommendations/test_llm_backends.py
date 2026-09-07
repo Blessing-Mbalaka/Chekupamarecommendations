@@ -1,3 +1,4 @@
+import json
 from unittest.mock import patch
 
 from django.test import SimpleTestCase
@@ -47,6 +48,18 @@ class LlmBackendTests(SimpleTestCase):
 
 
 class OllamaServiceTests(SimpleTestCase):
+    def assert_generation_options(self, options):
+        self.assertEqual(
+            options,
+            {
+                "temperature": ollama.OLLAMA_TEMPERATURE,
+                "top_p": ollama.OLLAMA_TOP_P,
+                "top_k": ollama.OLLAMA_TOP_K,
+                "repeat_penalty": ollama.OLLAMA_REPEAT_PENALTY,
+                "num_predict": ollama.OLLAMA_NUM_PREDICT,
+            },
+        )
+
     @patch("recommendations.services.ollama._get_json")
     def test_list_models_returns_local_models(self, mock_get_json):
         mock_get_json.return_value = {
@@ -74,6 +87,15 @@ class OllamaServiceTests(SimpleTestCase):
         self.assertEqual(embeddings, [[0.1], [0.2], [0.3]])
         self.assertEqual(mock_post_json.call_count, 2)
 
+    @patch("recommendations.services.ollama.is_available", return_value=True)
+    @patch("recommendations.services.ollama._post_json", return_value={"response": "Grounded answer"})
+    def test_generate_text_uses_configured_generation_options(self, mock_post_json, mock_is_available):
+        response = ollama.generate_text("Use sources.", "Explain loops.")
+
+        self.assertEqual(response, "Grounded answer")
+        payload = mock_post_json.call_args.args[1]
+        self.assert_generation_options(payload["options"])
+
     @patch("recommendations.services.ollama.request.urlopen")
     def test_generate_text_stream_yields_incremental_tokens(self, mock_urlopen):
         mock_urlopen.return_value.__enter__.return_value = [
@@ -92,6 +114,8 @@ class OllamaServiceTests(SimpleTestCase):
         )
 
         self.assertEqual(tokens, ["Feedback", " loops"])
+        request_payload = json.loads(mock_urlopen.call_args.args[0].data.decode("utf-8"))
+        self.assert_generation_options(request_payload["options"])
 
 
 class GeminiServiceTests(SimpleTestCase):

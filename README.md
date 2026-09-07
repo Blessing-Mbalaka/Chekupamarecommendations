@@ -1,3 +1,6 @@
+#when deploying
+so the pdfs or embedded uploads are in gitignore so you might want to chunk them on the deployed with fresh database since github cant handle big files.
+
 # Recommendation Engine
 
 An API-first Django learning support platform with:
