@@ -65,6 +65,10 @@ def generate_chat_text(system_instruction: str, contents: list[str]) -> tuple[st
 
 
 def generate_chat_text_stream(system_instruction: str, contents: list[str]):
+    if gemini.is_configured():
+        response = gemini.generate_text(system_instruction, contents)
+        if response:
+            return iter([response]), "gemini"
     if ollama.is_available():
         return (
             ollama.generate_text_stream(

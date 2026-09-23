@@ -5,18 +5,18 @@ from urllib import error, request
 
 
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/api")
-OLLAMA_TEXT_MODEL = os.getenv("OLLAMA_TEXT_MODEL", "ministral-3:3b")
+OLLAMA_TEXT_MODEL = os.getenv("OLLAMA_TEXT_MODEL", "tinyllama:latest")
 OLLAMA_FAST_TEXT_MODEL = os.getenv("OLLAMA_FAST_TEXT_MODEL", "tinyllama:latest")
 OLLAMA_EMBED_MODEL = os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text:latest")
 OLLAMA_TAGS_TIMEOUT = float(os.getenv("OLLAMA_TAGS_TIMEOUT_SECONDS", "1"))
 OLLAMA_TEXT_TIMEOUT = float(os.getenv("OLLAMA_TEXT_TIMEOUT_SECONDS", "180"))
 OLLAMA_EMBED_TIMEOUT = float(os.getenv("OLLAMA_EMBED_TIMEOUT_SECONDS", "2"))
 OLLAMA_MODELS_TTL_SECONDS = float(os.getenv("OLLAMA_MODELS_TTL_SECONDS", "15"))
-OLLAMA_TEMPERATURE = float(os.getenv("OLLAMA_TEMPERATURE", "0.2"))
+OLLAMA_TEMPERATURE = float(os.getenv("OLLAMA_TEMPERATURE", "0.1"))
 OLLAMA_TOP_P = float(os.getenv("OLLAMA_TOP_P", "0.9"))
-OLLAMA_TOP_K = int(os.getenv("OLLAMA_TOP_K", "40"))
+OLLAMA_TOP_K = int(os.getenv("OLLAMA_TOP_K", "1"))
 OLLAMA_REPEAT_PENALTY = float(os.getenv("OLLAMA_REPEAT_PENALTY", "1.1"))
-OLLAMA_NUM_PREDICT = int(os.getenv("OLLAMA_NUM_PREDICT", "500"))
+OLLAMA_NUM_PREDICT = int(os.getenv("OLLAMA_NUM_PREDICT", "300"))
 MODEL_CACHE = {"models": [], "fetched_at": 0.0}
 
 

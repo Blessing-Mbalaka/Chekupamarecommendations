@@ -9,6 +9,7 @@ from core.services.temp_functions.commonquestions import (
     COMMON_QUESTIONS_INDEX_CACHE_KEY,
     FALLBACK_COMMON_QUESTIONS,
     extract_common_questions,
+    find_common_question,
     load_common_questions,
     warm_common_question_cache,
 )
@@ -167,9 +168,11 @@ class CommonQuestionWarmupTests(TestCase):
 
         self.assertEqual(questions, FALLBACK_COMMON_QUESTIONS)
 
+    @patch("core.services.temp_functions.commonquestions.embed_text", return_value=([1.0, 0.0], "test"))
     @patch("core.services.temp_functions.commonquestions.generate_grounded_response_for_query")
-    def test_warm_common_question_cache_stores_payloads(self, mock_generate):
+    def test_warm_common_question_cache_stores_vector_and_course_scope(self, mock_generate, mock_embed):
         cache.clear()
+        course = Course.objects.create(code="FAQ101", title="FAQ course")
         mock_generate.return_value = {
             "text": "Grounded answer",
             "metadata": {
@@ -183,15 +186,138 @@ class CommonQuestionWarmupTests(TestCase):
             question_file = Path(temp_dir) / "common.md"
             question_file.write_text("1. First question?\n\n2. Second question?\n", encoding="utf-8")
 
-            warmed_entries = warm_common_question_cache(path=question_file, limit=1)
+            warmed_entries = warm_common_question_cache(path=question_file, course=course, limit=1)
 
         self.assertEqual(len(warmed_entries), 1)
         self.assertEqual(warmed_entries[0]["question"], "First question?")
         self.assertEqual(warmed_entries[0]["source_count"], 1)
         self.assertEqual(warmed_entries[0]["external_suggestion_count"], 1)
-        mock_generate.assert_called_once_with("First question?", course=None)
+        mock_generate.assert_called_once_with("First question?", course=course, use_faq_cache=False)
 
         cached_keys = cache.get(COMMON_QUESTIONS_INDEX_CACHE_KEY)
         self.assertEqual(cached_keys, [warmed_entries[0]["cache_key"]])
         cached_entry = cache.get(warmed_entries[0]["cache_key"])
         self.assertEqual(cached_entry["payload"]["text"], "Grounded answer")
+        self.assertEqual(cached_entry["embedding"], [1.0, 0.0])
+        self.assertEqual(cached_entry["embedding_backend"], "test")
+        self.assertEqual(cached_entry["course_id"], course.pk)
+        mock_embed.assert_called_once_with("First question?")
+
+    @patch("core.services.temp_functions.commonquestions.embed_text", return_value=([0.98, 0.02], "test"))
+    def test_find_common_question_returns_semantically_similar_cached_answer(self, mock_embed):
+        cache.clear()
+        course = Course.objects.create(code="FAQ102", title="Systems FAQ")
+        cache_key = "common-questions-warmup:semantic-match"
+        cache.set(
+            cache_key,
+            {
+                "question": "How do feedback delays affect clinician trust?",
+                "section": "Feedback",
+                "step": "",
+                "course_id": course.pk,
+                "embedding": [1.0, 0.0],
+                "embedding_backend": "test",
+                "payload": {
+                    "text": "Delays weaken trust in diagnostic results.",
+                    "metadata": {"grounded": True, "response_backend": "gemini"},
+                },
+            },
+        )
+        cache.set(COMMON_QUESTIONS_INDEX_CACHE_KEY, [cache_key])
+
+        payload = find_common_question(
+            "Why do slow lab results make clinicians distrust diagnostics?",
+            course=course,
+        )
+
+        self.assertEqual(payload["text"], "Delays weaken trust in diagnostic results.")
+        self.assertEqual(
+            payload["metadata"]["faq_match"]["question"],
+            "How do feedback delays affect clinician trust?",
+        )
+        self.assertGreater(payload["metadata"]["faq_match"]["score"], 0.9)
+        self.assertEqual(payload["metadata"]["response_backend"], "faq-cache")
+
+    @patch("core.services.temp_functions.commonquestions.embed_text", return_value=([1.0, 0.0], "test"))
+    def test_find_common_question_does_not_cross_course_boundaries(self, mock_embed):
+        cache.clear()
+        faq_course = Course.objects.create(code="FAQ103", title="Systems FAQ")
+        other_course = Course.objects.create(code="FAQ104", title="Other course")
+        cache_key = "common-questions-warmup:course-match"
+        cache.set(
+            cache_key,
+            {
+                "question": "What is a balancing loop?",
+                "course_id": faq_course.pk,
+                "embedding": [1.0, 0.0],
+                "embedding_backend": "test",
+                "payload": {"text": "A cached answer", "metadata": {}},
+            },
+        )
+        cache.set(COMMON_QUESTIONS_INDEX_CACHE_KEY, [cache_key])
+
+        payload = find_common_question("Explain balancing loops", course=other_course)
+
+        self.assertIsNone(payload)
+
+    @patch("core.services.temp_functions.commonquestions.embed_text", return_value=([0.6, 0.8], "test"))
+    def test_find_common_question_rejects_low_confidence_vector_match(self, mock_embed):
+        cache.clear()
+        course = Course.objects.create(code="FAQ105", title="Systems FAQ")
+        cache_key = "common-questions-warmup:weak-match"
+        cache.set(
+            cache_key,
+            {
+                "question": "What is a causal loop diagram?",
+                "course_id": course.pk,
+                "embedding": [1.0, 0.0],
+                "embedding_backend": "test",
+                "payload": {"text": "A cached answer", "metadata": {}},
+            },
+        )
+        cache.set(COMMON_QUESTIONS_INDEX_CACHE_KEY, [cache_key])
+
+        payload = find_common_question("Tell me about hospital budgets", course=course)
+
+        self.assertIsNone(payload)
+
+    @patch("core.services.temp_functions.commonquestions.embed_text", return_value=([1.0, 0.0], "test"))
+    def test_find_common_question_rejects_ungrounded_cached_answer(self, mock_embed):
+        cache.clear()
+        course = Course.objects.create(code="FAQ106", title="Systems FAQ")
+        cache_key = "common-questions-warmup:ungrounded"
+        cache.set(
+            cache_key,
+            {
+                "question": "What is a causal loop diagram?",
+                "course_id": course.pk,
+                "embedding": [1.0, 0.0],
+                "embedding_backend": "test",
+                "payload": {
+                    "text": "The indexed library does not contain the answer.",
+                    "metadata": {"grounded": False, "response_backend": "rag-empty"},
+                },
+            },
+        )
+        cache.set(COMMON_QUESTIONS_INDEX_CACHE_KEY, [cache_key])
+
+        payload = find_common_question("Explain causal loop diagrams", course=course)
+
+        self.assertIsNone(payload)
+
+    @patch("core.services.temp_functions.commonquestions.embed_text", return_value=([], "fallback"))
+    @patch("core.services.temp_functions.commonquestions.generate_grounded_response_for_query")
+    def test_warm_common_question_cache_does_not_index_missing_vector(self, mock_generate, mock_embed):
+        cache.clear()
+        mock_generate.return_value = {
+            "text": "Grounded answer",
+            "metadata": {"grounded": True, "sources": [], "external_suggestions": []},
+        }
+        with TemporaryDirectory() as temp_dir:
+            question_file = Path(temp_dir) / "common.md"
+            question_file.write_text("1. First question?\n", encoding="utf-8")
+
+            warmed_entries = warm_common_question_cache(path=question_file)
+
+        self.assertEqual(cache.get(COMMON_QUESTIONS_INDEX_CACHE_KEY), [])
+        self.assertFalse(warmed_entries[0]["vectorized"])

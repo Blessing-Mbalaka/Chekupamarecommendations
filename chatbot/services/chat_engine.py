@@ -5,6 +5,7 @@ from urllib.parse import urlparse
 from django.core.cache import cache
 
 from chatbot.models import ChatMessage
+from core.services.temp_functions.commonquestions import find_common_question
 from ingestion.services.vector_store import retrieve_chunks
 from learning.models import Course, Material
 from learning.services.discovery import REPUTABLE_PROVIDER_NAMES, discover_curated_content, import_curated_results
@@ -221,14 +222,23 @@ def _source_context(matches: list[dict], *, character_limit: int = 5500) -> str:
     blocks = []
     used = 0
     seen_chunk_ids = set()
+
+    # Single query for every neighbor ordinal needed across all matches instead of one query per match.
+    needed_ordinals = {
+        neighbor_ordinal
+        for match in matches
+        for neighbor_ordinal in (match["chunk"].ordinal - 1, match["chunk"].ordinal, match["chunk"].ordinal + 1)
+        if neighbor_ordinal >= 0
+    }
+    neighbors_by_ordinal = {
+        chunk.ordinal: chunk
+        for chunk in material.content_chunks.filter(ordinal__in=needed_ordinals).only(
+            "ordinal", "text", "page_number", "section_title", "material_id"
+        )
+    }
+
     for match in matches:
         ordinal = match["chunk"].ordinal
-        neighbors_by_ordinal = {
-            chunk.ordinal: chunk
-            for chunk in material.content_chunks.filter(
-            ordinal__range=(max(0, ordinal - 1), ordinal + 1)
-            )
-        }
         passage = []
         for neighbor_ordinal in (ordinal, ordinal - 1, ordinal + 1):
             chunk = neighbors_by_ordinal.get(neighbor_ordinal)
@@ -434,8 +444,25 @@ def generate_grounded_response_for_query(
     student=None,
     related_message: ChatMessage | None = None,
     track_analytics: bool = False,
+    use_faq_cache: bool = True,
 ):
     """Run the retrieval-only answer flow for a plain-text query."""
+
+    faq_payload = find_common_question(query, course=course) if use_faq_cache else None
+    if faq_payload:
+        if track_analytics and related_message:
+            faq_match = faq_payload["metadata"]["faq_match"]
+            record_relevant_question(
+                related_message,
+                {
+                    "relevant": True,
+                    "score": faq_match["score"],
+                    "backend": "faq-vector",
+                    "reason": f"Matched common question: {faq_match['question']}",
+                },
+                course=course,
+            )
+        return faq_payload
 
     retrieval_query = _contextualized_retrieval_query(query, related_message)
     ranked_matches = retrieve_chunks(retrieval_query, course=course, limit=30)
@@ -477,6 +504,24 @@ def stream_bot_response(message: ChatMessage):
 
     query = message.content
     course = message.session.course
+    yield {"type": "status", "text": "Checking common questions..."}
+    faq_payload = find_common_question(query, course=course)
+    if faq_payload:
+        faq_match = faq_payload["metadata"]["faq_match"]
+        record_relevant_question(
+            message,
+            {
+                "relevant": True,
+                "score": faq_match["score"],
+                "backend": "faq-vector",
+                "reason": f"Matched common question: {faq_match['question']}",
+            },
+            course=course,
+        )
+        yield {"type": "token", "text": faq_payload["text"]}
+        yield {"type": "complete", "payload": faq_payload}
+        return
+
     yield {"type": "status", "text": "Searching the indexed course library…"}
     retrieval_query = _contextualized_retrieval_query(query, message)
     ranked_matches = retrieve_chunks(retrieval_query, course=course, limit=30)
@@ -591,7 +636,7 @@ def stream_bot_response(message: ChatMessage):
         backend = f"{cached_answer['backend']}-cache"
         yield {"type": "token", "text": generated_text}
     else:
-        yield {"type": "status", "text": "Ministral is writing from the cited material…"}
+        yield {"type": "status", "text": "Writing an answer from the cited material…"}
         token_stream, backend = generate_chat_text_stream(system_instruction, contents)
         generated_parts = []
         for token in token_stream:

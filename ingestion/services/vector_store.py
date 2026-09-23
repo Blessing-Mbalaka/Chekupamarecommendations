@@ -6,14 +6,16 @@ import re
 from collections import Counter
 from dataclasses import dataclass
 
+from django.core.cache import cache
 from django.db import transaction
 
 from ingestion.models import ContentChunk
 from learning.models import Material
-from recommendations.services.llm import cosine_similarity, embed_text, embed_texts, embedding_model_name
+from recommendations.services.llm import embed_text, embed_texts, embedding_model_name
 
 
 CHUNKING_STRATEGY = "semantic-cohesion-v1"
+RETRIEVAL_CACHE_TTL_SECONDS = 300
 TOKEN_PATTERN = re.compile(r"[a-z0-9]+")
 WORD_PATTERN = re.compile(r"\w+|[^\w\s]", re.UNICODE)
 SENTENCE_BOUNDARY = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9])")
@@ -259,17 +261,62 @@ def index_material(material: Material, *, text: str = "", research_video=None) -
         if source_text and material.semantic_text != source_text:
             material.semantic_text = source_text
             material.save(update_fields=["semantic_text"])
+    invalidate_retrieval_cache(material.course_id)
     return indexed
+
+
+def _corpus_cache_key(course_id) -> str:
+    return f"rag-corpus:{course_id or 'all'}"
+
+
+def invalidate_retrieval_cache(course_id=None) -> None:
+    """Drop the cached scoring corpus for a course, and the cross-course cache that also covers it."""
+
+    cache.delete_many({_corpus_cache_key(course_id), _corpus_cache_key(None)})
+
+
+def _invalidate_cache_for_chunk(sender, instance, **kwargs) -> None:
+    """Signal receiver so any ContentChunk create/delete (not just index_material) busts the corpus cache."""
+
+    course_id = None
+    try:
+        course_id = instance.material.course_id
+    except Material.DoesNotExist:
+        pass
+    invalidate_retrieval_cache(course_id)
+
+
+
+def _load_scoring_corpus(course) -> dict:
+    """Cheap, cached id/text/embedding tuples used for scoring; full rows are only fetched for winners."""
+
+    course_id = course.pk if course else None
+    cache_key = _corpus_cache_key(course_id)
+    corpus = cache.get(cache_key)
+    if corpus is not None:
+        return corpus
+
+    queryset = ContentChunk.objects.filter(material__is_validated=True)
+    if course:
+        queryset = queryset.filter(material__course=course)
+    rows = list(queryset.values("id", "text", "embedding"))
+    corpus = {
+        "ids": [row["id"] for row in rows],
+        "texts": [row["text"] for row in rows],
+        "embeddings": [row["embedding"] for row in rows],
+    }
+    cache.set(cache_key, corpus, timeout=RETRIEVAL_CACHE_TTL_SECONDS)
+    return corpus
 
 
 def _tokens(value: str) -> list[str]:
     return [token for token in TOKEN_PATTERN.findall((value or "").lower()) if len(token) > 2]
 
 
-def _bm25_scores(chunks: list[ContentChunk], query_tokens: list[str]) -> list[float]:
-    if not chunks or not query_tokens:
-        return [0.0] * len(chunks)
-    documents = [Counter(_tokens(chunk.text)) for chunk in chunks]
+def _bm25_scores(texts: list[str], query_tokens: list[str]) -> list[float]:
+    if not texts or not query_tokens:
+        return [0.0] * len(texts)
+    documents = [Counter(_tokens(text)) for text in texts]
     lengths = [sum(document.values()) for document in documents]
     average_length = sum(lengths) / max(1, len(lengths))
     document_frequency = Counter(
@@ -291,28 +338,49 @@ def _bm25_scores(chunks: list[ContentChunk], query_tokens: list[str]) -> list[fl
     return scores
 
 
+def _semantic_scores(query_embedding: list[float], embeddings: list[list[float]]) -> list[float]:
+    """Vectorized cosine similarity against every chunk embedding in one matmul instead of per-chunk loops."""
+
+    if not query_embedding:
+        return [0.0] * len(embeddings)
+    import numpy as np
+
+    query_vector = np.asarray(query_embedding, dtype=np.float64)
+    query_norm = np.linalg.norm(query_vector)
+    valid_indices = [
+        index
+        for index, embedding in enumerate(embeddings)
+        if embedding and len(embedding) == len(query_embedding)
+    ]
+    if not query_norm or not valid_indices:
+        return [0.0] * len(embeddings)
+
+    matrix = np.asarray([embeddings[index] for index in valid_indices], dtype=np.float64)
+    norms = np.linalg.norm(matrix, axis=1)
+    norms[norms == 0] = 1.0
+    similarities = (matrix @ query_vector) / (norms * query_norm)
+
+    scores = [0.0] * len(embeddings)
+    for position, chunk_index in enumerate(valid_indices):
+        scores[chunk_index] = float(similarities[position])
+    return scores
+
+
 def retrieve_chunks(query: str, *, course=None, limit: int = 5) -> list[dict]:
-    queryset = ContentChunk.objects.select_related("material", "material__course", "material__topic")
-    queryset = queryset.filter(material__is_validated=True)
-    if course:
-        queryset = queryset.filter(material__course=course)
-    chunks = list(queryset)
-    if not chunks:
+    corpus = _load_scoring_corpus(course)
+    if not corpus["ids"]:
         return []
 
     query_embedding, _ = embed_text(query)
-    semantic_scores = [
-        cosine_similarity(query_embedding, chunk.embedding) if query_embedding and chunk.embedding else 0.0
-        for chunk in chunks
-    ]
-    lexical_scores = _bm25_scores(chunks, _tokens(query))
+    semantic_scores = _semantic_scores(query_embedding, corpus["embeddings"])
+    lexical_scores = _bm25_scores(corpus["texts"], _tokens(query))
     max_semantic = max(semantic_scores, default=0.0)
     max_lexical = max(lexical_scores, default=0.0)
     has_semantic = max_semantic > 0
     has_lexical = max_lexical > 0
 
-    ranked = []
-    for chunk, semantic, lexical in zip(chunks, semantic_scores, lexical_scores):
+    candidates = []
+    for chunk_id, semantic, lexical in zip(corpus["ids"], semantic_scores, lexical_scores):
         semantic_normalized = semantic / max_semantic if has_semantic else 0.0
         lexical_normalized = lexical / max_lexical if has_lexical else 0.0
         if has_semantic and has_lexical:
@@ -322,8 +390,19 @@ def retrieve_chunks(query: str, *, course=None, limit: int = 5) -> list[dict]:
         else:
             score = lexical_normalized
         if lexical > 0 or semantic > 0.15:
-            ranked.append((score, semantic, lexical, chunk))
-    ranked.sort(key=lambda item: (item[0], item[1], item[2]), reverse=True)
+            candidates.append((score, semantic, lexical, chunk_id))
+    candidates.sort(key=lambda item: (item[0], item[1], item[2]), reverse=True)
+    winners = candidates[:limit]
+    if not winners:
+        return []
+
+    # Only hydrate full chunk/material rows for the handful of chunks that actually made the cut.
+    chunks_by_id = {
+        chunk.pk: chunk
+        for chunk in ContentChunk.objects.select_related("material", "material__course", "material__topic").filter(
+            pk__in=[chunk_id for *_, chunk_id in winners], material__is_validated=True
+        )
+    }
     return [
         {
             "chunk": chunk,
@@ -333,5 +412,6 @@ def retrieve_chunks(query: str, *, course=None, limit: int = 5) -> list[dict]:
             "bm25_score": round(lexical, 4),
             "text": chunk.text,
         }
-        for score, semantic, lexical, chunk in ranked[:limit]
+        for score, semantic, lexical, chunk_id in winners
+        if (chunk := chunks_by_id.get(chunk_id)) is not None
     ]

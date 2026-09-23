@@ -1,17 +1,19 @@
 import re
+from copy import deepcopy
 from hashlib import sha256
 from pathlib import Path
 
 from django.conf import settings
 from django.core.cache import cache
 
-from chatbot.services.chat_engine import generate_grounded_response_for_query
+from recommendations.services.llm import cosine_similarity, embed_text
 
 
 COMMON_QUESTIONS_INDEX_CACHE_KEY = "common-questions-warmup:keys"
 COMMON_QUESTIONS_CACHE_PREFIX = "common-questions-warmup:"
 COMMON_QUESTIONS_CACHE_TIMEOUT = 60 * 60 * 12
 DEFAULT_COMMON_QUESTIONS_PATH = settings.BASE_DIR / "common questions.md"
+DEFAULT_COMMON_QUESTION_SIMILARITY_THRESHOLD = 0.82
 
 QUESTION_LINE_RE = re.compile(r"^\s*\d+\.\s+(.*\S)\s*$")
 HEADING_LINE_RE = re.compile(r"^\s*\*\*(.+?)\*\*\s*$")
@@ -217,6 +219,66 @@ def load_common_questions(path: str | Path | None = None) -> list[dict]:
     return []
 
 
+def generate_grounded_response_for_query(*args, **kwargs):
+    """Import lazily so the chat engine can use FAQ lookup without an import cycle."""
+
+    from chatbot.services.chat_engine import generate_grounded_response_for_query as generate_response
+
+    return generate_response(*args, **kwargs)
+
+
+def find_common_question(query: str, *, course=None, threshold: float | None = None) -> dict | None:
+    """Return the closest course-scoped warmed FAQ answer above the confidence threshold."""
+
+    cache_keys = cache.get(COMMON_QUESTIONS_INDEX_CACHE_KEY) or []
+    entries = cache.get_many(cache_keys).values()
+    course_id = getattr(course, "pk", None)
+    candidates = [
+        entry
+        for entry in entries
+        if entry.get("course_id") == course_id
+        and entry.get("embedding")
+        and entry.get("payload", {}).get("metadata", {}).get("grounded") is True
+    ]
+    if not candidates:
+        return None
+
+    query_embedding, query_backend = embed_text(query)
+    if not query_embedding:
+        return None
+
+    best_entry = None
+    best_score = 0.0
+    for entry in candidates:
+        if entry.get("embedding_backend") != query_backend:
+            continue
+        score = cosine_similarity(query_embedding, entry["embedding"])
+        if score > best_score:
+            best_entry = entry
+            best_score = score
+
+    minimum_score = (
+        float(getattr(settings, "COMMON_QUESTION_SIMILARITY_THRESHOLD", DEFAULT_COMMON_QUESTION_SIMILARITY_THRESHOLD))
+        if threshold is None
+        else float(threshold)
+    )
+    if best_entry is None or best_score < minimum_score:
+        return None
+
+    payload = deepcopy(best_entry["payload"])
+    metadata = payload.setdefault("metadata", {})
+    source_backend = metadata.get("response_backend", "")
+    metadata["response_backend"] = "faq-cache"
+    metadata["faq_match"] = {
+        "question": best_entry["question"],
+        "section": best_entry.get("section", ""),
+        "step": best_entry.get("step", ""),
+        "score": round(best_score, 4),
+        "source_backend": source_backend,
+    }
+    return payload
+
+
 def warm_common_question_cache(*, path: str | Path | None = None, course=None, limit: int | None = None) -> list[dict]:
     questions = load_common_questions(path=path)
     if limit is not None:
@@ -224,26 +286,44 @@ def warm_common_question_cache(*, path: str | Path | None = None, course=None, l
 
     warmed_entries = []
     cache_keys = []
+    course_id = getattr(course, "pk", None)
     for entry in questions:
         question = entry["question"]
-        cache_key = COMMON_QUESTIONS_CACHE_PREFIX + sha256(question.strip().lower().encode("utf-8")).hexdigest()
-        payload = generate_grounded_response_for_query(question, course=course)
+        signature = f"{course_id or 'global'}:{question.strip().lower()}"
+        cache_key = COMMON_QUESTIONS_CACHE_PREFIX + sha256(signature.encode("utf-8")).hexdigest()
+        payload = generate_grounded_response_for_query(question, course=course, use_faq_cache=False)
+        embedding, embedding_backend = embed_text(question)
+        vectorized = bool(embedding and payload.get("metadata", {}).get("grounded") is True)
         cached_entry = {
             **entry,
             "cache_key": cache_key,
+            "course_id": course_id,
+            "embedding": embedding,
+            "embedding_backend": embedding_backend,
             "payload": payload,
         }
-        cache.set(cache_key, cached_entry, timeout=COMMON_QUESTIONS_CACHE_TIMEOUT)
-        cache_keys.append(cache_key)
+        if vectorized:
+            cache.set(cache_key, cached_entry, timeout=COMMON_QUESTIONS_CACHE_TIMEOUT)
+            cache_keys.append(cache_key)
         warmed_entries.append(
             {
                 "question": question,
                 "cache_key": cache_key,
+                "vectorized": vectorized,
                 "grounded": payload.get("metadata", {}).get("grounded", False),
                 "source_count": len(payload.get("metadata", {}).get("sources", [])),
                 "external_suggestion_count": len(payload.get("metadata", {}).get("external_suggestions", [])),
             }
         )
 
-    cache.set(COMMON_QUESTIONS_INDEX_CACHE_KEY, cache_keys, timeout=COMMON_QUESTIONS_CACHE_TIMEOUT)
+    previous_keys = cache.get(COMMON_QUESTIONS_INDEX_CACHE_KEY) or []
+    retained_keys = []
+    for previous_key, previous_entry in cache.get_many(previous_keys).items():
+        if previous_entry.get("course_id") != course_id:
+            retained_keys.append(previous_key)
+    cache.set(
+        COMMON_QUESTIONS_INDEX_CACHE_KEY,
+        [*retained_keys, *cache_keys],
+        timeout=COMMON_QUESTIONS_CACHE_TIMEOUT,
+    )
     return warmed_entries

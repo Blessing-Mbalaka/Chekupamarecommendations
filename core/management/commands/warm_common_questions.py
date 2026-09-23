@@ -36,8 +36,15 @@ class Command(BaseCommand):
             limit=options["limit"] or None,
         )
         grounded_count = sum(1 for entry in warmed_entries if entry["grounded"])
+        vectorized_count = sum(1 for entry in warmed_entries if entry["vectorized"])
+        if warmed_entries and not vectorized_count:
+            raise CommandError(
+                "No common-question vectors were indexed. Configure a working embedding backend and ensure "
+                "the generated answers are grounded."
+            )
         self.stdout.write(
             self.style.SUCCESS(
-                f"Warmed {len(warmed_entries)} common questions with {grounded_count} grounded responses."
+                f"Indexed {vectorized_count} common-question vectors from {len(warmed_entries)} questions "
+                f"with {grounded_count} grounded responses."
             )
         )

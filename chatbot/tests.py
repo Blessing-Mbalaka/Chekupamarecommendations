@@ -8,13 +8,23 @@ from django.urls import reverse
 from accounts.models import StudentProfile, User
 from analytics_app.models import AnalyzedQuestion
 from chatbot.models import ChatMessage, ChatSession
+from core.services.temp_functions.commonquestions import (
+    COMMON_QUESTIONS_INDEX_CACHE_KEY,
+)
 from ingestion.models import ContentChunk
 from learning.models import AssessmentQuestion, BaselineAssessment, Course, Material
-from chatbot.services.chat_engine import _refresh_academic_discovery, _select_matches, generate_bot_response
+from chatbot.services.chat_engine import (
+    _refresh_academic_discovery,
+    _select_matches,
+    generate_bot_response,
+    generate_grounded_response_for_query,
+    stream_bot_response,
+)
 
 
 class ChatbotFlowTests(TestCase):
     def setUp(self):
+        cache.clear()
         self.student = User.objects.create_user(
             username="student3",
             password="password123",
@@ -44,6 +54,105 @@ class ChatbotFlowTests(TestCase):
             sender=ChatMessage.Sender.STUDENT,
             content="Can you suggest an easy mechanics explanation?",
         )
+
+    def _cache_course_faq(self):
+        cache_key = "common-questions-warmup:chat-priority"
+        cache.set(
+            cache_key,
+            {
+                "question": "How does force relate to mass and acceleration?",
+                "section": "Mechanics",
+                "step": "",
+                "course_id": self.course.pk,
+                "embedding": [1.0, 0.0],
+                "embedding_backend": "test",
+                "payload": {
+                    "text": "Force equals mass multiplied by acceleration.",
+                    "metadata": {
+                        "rag_only": True,
+                        "grounded": True,
+                        "response_backend": "gemini",
+                        "sources": [],
+                        "external_suggestions": [],
+                        "provider_statuses": [],
+                    },
+                },
+            },
+        )
+        cache.set(COMMON_QUESTIONS_INDEX_CACHE_KEY, [cache_key])
+
+    @patch("core.services.temp_functions.commonquestions.embed_text", return_value=([0.99, 0.01], "test"))
+    @patch("chatbot.services.chat_engine.retrieve_chunks", side_effect=AssertionError("RAG should not run for an FAQ hit"))
+    def test_semantic_faq_match_is_checked_before_rag(self, mock_retrieve, mock_embed):
+        cache.clear()
+        self._cache_course_faq()
+        session = ChatSession.objects.get(student=self.student)
+        message = ChatMessage.objects.create(
+            session=session,
+            sender=ChatMessage.Sender.STUDENT,
+            content="Can you explain the connection between acceleration, mass, and force?",
+        )
+
+        payload = generate_bot_response(message)
+
+        self.assertEqual(payload["text"], "Force equals mass multiplied by acceleration.")
+        self.assertEqual(payload["metadata"]["response_backend"], "faq-cache")
+        self.assertEqual(
+            payload["metadata"]["faq_match"]["question"],
+            "How does force relate to mass and acceleration?",
+        )
+        self.assertTrue(AnalyzedQuestion.objects.filter(message=message).exists())
+
+    @patch("core.services.temp_functions.commonquestions.embed_text", return_value=([0.99, 0.01], "test"))
+    @patch("chatbot.services.chat_engine.retrieve_chunks", side_effect=AssertionError("RAG should not run for an FAQ hit"))
+    def test_streaming_faq_match_emits_cached_answer_without_rag(self, mock_retrieve, mock_embed):
+        cache.clear()
+        self._cache_course_faq()
+        session = ChatSession.objects.get(student=self.student)
+        message = ChatMessage.objects.create(
+            session=session,
+            sender=ChatMessage.Sender.STUDENT,
+            content="What links mass and acceleration to force?",
+        )
+
+        events = list(stream_bot_response(message))
+
+        self.assertEqual(events[-2], {"type": "token", "text": "Force equals mass multiplied by acceleration."})
+        self.assertEqual(events[-1]["type"], "complete")
+        self.assertEqual(events[-1]["payload"]["metadata"]["response_backend"], "faq-cache")
+
+    @patch("core.services.temp_functions.commonquestions.embed_text", return_value=([1.0, 0.0], "test"))
+    @patch("chatbot.services.chat_engine._refresh_academic_discovery", return_value={"statuses": [], "material_ids": []})
+    @patch("chatbot.services.chat_engine.generate_chat_text", return_value=("Refreshed from current material.", "test"))
+    def test_rag_only_generation_bypasses_existing_faq_cache(self, mock_generate, mock_discovery, mock_embed):
+        self._cache_course_faq()
+        chunk = ContentChunk.objects.create(
+            material=self.material,
+            ordinal=0,
+            text="Current material about force, mass, and acceleration.",
+            embedding=[1.0, 0.0],
+        )
+        with patch(
+            "chatbot.services.chat_engine.retrieve_chunks",
+            return_value=[
+                {
+                    "chunk": chunk,
+                    "material": self.material,
+                    "score": 1.0,
+                    "semantic_score": 1.0,
+                    "bm25_score": 1.0,
+                    "text": chunk.text,
+                }
+            ],
+        ):
+            payload = generate_grounded_response_for_query(
+                "How does force relate to mass and acceleration?",
+                course=self.course,
+                use_faq_cache=False,
+            )
+
+        self.assertEqual(payload["text"], "Refreshed from current material.")
+        self.assertEqual(payload["metadata"]["response_backend"], "test")
 
     @patch("chatbot.services.chat_engine._refresh_academic_discovery", return_value={"statuses": [], "material_ids": []})
     @patch("chatbot.services.chat_engine.generate_chat_text", return_value=("Start with the mechanics video first.", "gemini"))
