@@ -66,6 +66,7 @@ class YouTubeResearchTests(TestCase):
         )
         video = run.videos.get()
         self.assertEqual(video.transcript_status, "awaiting_upload")
+        self.assertFalse(video.material.is_validated)
         self.assertFalse(ContentChunk.objects.exists())
 
         with patch("ingestion.services.vector_store.embed_text", return_value=([0.1, 0.2], "test")), patch(

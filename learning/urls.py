@@ -3,6 +3,9 @@ from django.urls import path
 from .views import (
     assessment_detail_view,
     material_detail_view,
+    material_approval_list_view,
+    material_approve_view,
+    material_approve_selected_view,
     material_file_preview_view,
     material_list_view,
     material_serpapi_transcript_view,
@@ -19,6 +22,9 @@ app_name = "learning"
 
 urlpatterns = [
     path("materials/", material_list_view, name="material_list"),
+    path("materials/approvals/", material_approval_list_view, name="material_approval_list"),
+    path("materials/approvals/approve-selected/", material_approve_selected_view, name="material_approve_selected"),
+    path("materials/approvals/<int:pk>/approve/", material_approve_view, name="material_approve"),
     path("materials/<int:pk>/", material_detail_view, name="material_detail"),
     path("materials/<int:pk>/preview/", material_file_preview_view, name="material_file_preview"),
     path("materials/<int:pk>/serpapi-transcript/", material_serpapi_transcript_view, name="material_serpapi_transcript"),

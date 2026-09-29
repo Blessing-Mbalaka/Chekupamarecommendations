@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}Material approvals{% endblock %}
+
+{% block content %}
+<section class="panel">
+    <p class="eyebrow">Lecturer review</p>
+    <h2>Material approvals</h2>
+    <p class="muted">API-fetched sources stay hidden from students until you approve them.</p>
+</section>
+
+<section class="panel">
+    <h3>Pending additional material</h3>
+    {% if pending_materials %}
+        <form id="bulk-approval-form" method="post" action="{% url 'learning:material_approve_selected' %}" class="button-row">
+            {% csrf_token %}
+            <button type="submit" class="secondary-button">Approve selected</button>
+        </form>
+    {% endif %}
+    {% for material in pending_materials %}
+        <article class="library-material-row">
+            <div>
+                <h4>
+                    <label>
+                        <input type="checkbox" name="material_ids" value="{{ material.pk }}" form="bulk-approval-form">
+                        {{ material.title }}
+                    </label>
+                </h4>
+                <p class="muted">
+                    {{ material.course.code }} · {{ material.source_provider|default:"External provider" }}
+                    {% if material.authors %} · {{ material.authors }}{% endif %}
+                    {% if material.publication_year %} · {{ material.publication_year }}{% endif %}
+                </p>
+                {% if material.description %}<p>{{ material.description|truncatechars:320 }}</p>{% endif %}
+                <div class="button-row">
+                    <a class="ghost-button" href="{{ material.get_absolute_url }}">Review record</a>
+                    {% if material.effective_source_url %}
+                        <a class="ghost-button" href="{{ material.effective_source_url }}" target="_blank" rel="noopener noreferrer">Open source</a>
+                    {% endif %}
+                </div>
+            </div>
+            <form method="post" action="{% url 'learning:material_approve' material.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="primary-button">Approve for students</button>
+            </form>
+        </article>
+    {% empty %}
+        <p class="muted">No API-fetched materials are waiting for your approval.</p>
+    {% endfor %}
+</section>
+{% endblock %}

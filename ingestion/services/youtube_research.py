@@ -190,7 +190,6 @@ def run_youtube_research(*, seed_url, course, topic, video_count, theme_count, t
                     "source_endpoint": "YouTube Data API v3", "external_url": f"https://www.youtube.com/watch?v={item['youtube_id']}",
                     "original_source_url": f"https://www.youtube.com/watch?v={item['youtube_id']}",
                     "youtube_title": item["title"][:255], "uploaded_by": created_by,
-                    "is_validated": True,
                 },
             )
             research_video = ResearchVideo.objects.create(

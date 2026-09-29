@@ -409,7 +409,6 @@ def persist_external_results(discovery_payload: dict, course=None, topic=None, u
             "source_citation": item.get("source_citation") or "",
             "tags": item.get("license") or "",
             "uploaded_by": uploaded_by,
-            "is_validated": True,
         }
         identity = {"course": course, "title": title}
         if defaults["source_provider"] and defaults["source_record_id"]:

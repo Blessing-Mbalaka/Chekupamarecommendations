@@ -207,6 +207,30 @@ class ChatbotFlowTests(TestCase):
         self.assertContains(response, "Additional material")
         self.assertContains(response, "youtube-nocookie.com/embed/fixtureVideo123")
 
+    def test_saved_chat_does_not_render_material_that_is_still_pending(self):
+        self.material.is_validated = False
+        self.material.save(update_fields=["is_validated"])
+        session = ChatSession.objects.get(student=self.student)
+        ChatMessage.objects.create(
+            session=session,
+            sender=ChatMessage.Sender.BOT,
+            content="I found a possible external resource.",
+            metadata={
+                "external_suggestions": [
+                    {
+                        "material_id": self.material.pk,
+                        "title": self.material.title,
+                        "external_url": self.material.external_url,
+                    }
+                ]
+            },
+        )
+        self.client.login(username=self.student.username, password="password123")
+
+        response = self.client.get(reverse("chatbot:chat"))
+
+        self.assertNotContains(response, self.material.title)
+
     @patch("chatbot.services.chat_engine.import_curated_results")
     @patch("chatbot.services.chat_engine.discover_curated_content")
     def test_chat_discovery_invokes_academic_apis_and_persists_metadata_only(self, mock_discover, mock_import):

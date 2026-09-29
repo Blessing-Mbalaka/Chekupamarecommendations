@@ -6,9 +6,33 @@ from django.shortcuts import render
 from django.template.loader import render_to_string
 from django.views.decorators.http import require_POST
 
+from learning.models import Material
+
 from .forms import ChatMessageForm
 from .models import ChatMessage, ChatSession
 from .services.chat_engine import generate_bot_response, stream_bot_response
+
+
+def _hide_unapproved_materials(messages):
+    messages = list(messages)
+    material_ids = {
+        item.get("material_id")
+        for message in messages
+        for key in ("sources", "external_suggestions")
+        for item in message.metadata.get(key, [])
+        if item.get("material_id")
+    }
+    approved_ids = set(
+        Material.objects.filter(pk__in=material_ids, is_validated=True).values_list("pk", flat=True)
+    )
+    for message in messages:
+        metadata = dict(message.metadata)
+        for key in ("sources", "external_suggestions"):
+            metadata[key] = [
+                item for item in metadata.get(key, []) if item.get("material_id") in approved_ids
+            ]
+        message.metadata = metadata
+    return messages
 
 
 @login_required
@@ -38,7 +62,7 @@ def chat_view(request):
         "chatbot/chat.html",
         {
             "session": session,
-            "chat_messages": session.messages.all(),
+            "chat_messages": _hide_unapproved_materials(session.messages.all()),
             "form": form,
         },
     )

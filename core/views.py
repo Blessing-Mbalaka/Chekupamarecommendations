@@ -42,7 +42,10 @@ def dashboard_view(request):
     materials = Material.objects.select_related("course", "topic").filter(is_validated=True)[:6]
     assessments = BaselineAssessment.objects.filter(is_active=True)[:6]
     recommendations = unique_recommendations(
-        Recommendation.objects.select_related("material", "material__topic").filter(student=request.user).order_by("-created_at")[:20]
+        Recommendation.objects.select_related("material", "material__topic").filter(
+            student=request.user,
+            material__is_validated=True,
+        ).order_by("-created_at")[:20]
     )[:5]
     latest_attempt = AssessmentAttempt.objects.filter(student=request.user).order_by("-submitted_at").first()
     session = ChatSession.objects.filter(student=request.user).first()

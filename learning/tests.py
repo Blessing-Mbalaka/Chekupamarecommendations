@@ -12,6 +12,7 @@ from ingestion.models import ContentChunk
 from learning.forms_curation import MaterialUploadForm
 from learning.models import AssessmentQuestion, BaselineAssessment, Course, Material, Quiz, QuizQuestion, Topic
 from learning.services.assessment import grade_assessment
+from learning.services.discovery import import_curated_results
 from learning.services.quizzes import generate_quiz_questions, parse_quiz_json, validate_quiz_json
 
 
@@ -207,6 +208,206 @@ class MaterialPreviewTests(TestCase):
 
         self.assertEqual(material.document_preview_url, "")
         self.assertEqual(material.preview_kind, "link")
+
+
+class MaterialApprovalTests(TestCase):
+    def setUp(self):
+        self.lecturer = User.objects.create_user(
+            username="approval_lecturer",
+            password="password123",
+            email="approval-lecturer@example.com",
+            role="lecturer",
+        )
+        self.other_lecturer = User.objects.create_user(
+            username="other_lecturer",
+            password="password123",
+            email="other-lecturer@example.com",
+            role="lecturer",
+        )
+        self.student = User.objects.create_user(
+            username="approval_student",
+            password="password123",
+            email="approval-student@example.com",
+            role="student",
+        )
+        self.course = Course.objects.create(code="APP101", title="Approval Testing")
+        self.course.lecturers.add(self.lecturer)
+        self.course.students.add(self.student)
+
+    def test_api_import_is_pending_until_lecturer_approval(self):
+        imported = import_curated_results(
+            {
+                "results": [
+                    {
+                        "title": "Fetched OpenAlex paper",
+                        "source_provider": "OpenAlex",
+                        "source_record_id": "W123",
+                        "external_url": "https://openalex.org/W123",
+                        "source_type": Material.SourceType.PAPER,
+                    }
+                ]
+            },
+            course=self.course,
+        )
+
+        self.assertFalse(imported[0].is_validated)
+
+    def test_api_refetch_does_not_overwrite_concurrent_lecturer_approval(self):
+        material = Material.objects.create(
+            course=self.course,
+            title="Concurrent approval paper",
+            source_origin=Material.SourceOrigin.EXTERNAL,
+            source_provider="OpenAlex",
+            source_record_id="W-concurrent",
+            is_validated=False,
+        )
+        real_update_or_create = Material.objects.update_or_create
+
+        def approve_then_update(*args, **kwargs):
+            Material.objects.filter(pk=material.pk).update(is_validated=True)
+            return real_update_or_create(*args, **kwargs)
+
+        with patch.object(Material.objects, "update_or_create", side_effect=approve_then_update):
+            import_curated_results(
+                {
+                    "results": [
+                        {
+                            "title": material.title,
+                            "source_provider": material.source_provider,
+                            "source_record_id": material.source_record_id,
+                            "external_url": "https://openalex.org/W-concurrent",
+                        }
+                    ]
+                },
+                course=self.course,
+            )
+
+        material.refresh_from_db()
+        self.assertTrue(material.is_validated)
+
+    def test_student_cannot_see_or_open_pending_material(self):
+        pending = Material.objects.create(
+            course=self.course,
+            title="Pending Crossref paper",
+            source_origin=Material.SourceOrigin.EXTERNAL,
+            source_provider="Crossref",
+            external_url="https://example.com/pending",
+            is_validated=False,
+        )
+        self.client.login(username=self.student.username, password="password123")
+
+        listing = self.client.get(reverse("learning:material_list"))
+        detail = self.client.get(reverse("learning:material_detail", args=[pending.pk]))
+
+        self.assertNotContains(listing, pending.title)
+        self.assertEqual(detail.status_code, 404)
+
+    def test_assigned_lecturer_can_approve_pending_material(self):
+        pending = Material.objects.create(
+            course=self.course,
+            title="Pending Semantic Scholar paper",
+            source_origin=Material.SourceOrigin.EXTERNAL,
+            source_provider="Semantic Scholar",
+            is_validated=False,
+        )
+        self.client.login(username=self.lecturer.username, password="password123")
+
+        queue = self.client.get("/learning/materials/approvals/")
+        response = self.client.post(f"/learning/materials/approvals/{pending.pk}/approve/")
+        pending.refresh_from_db()
+
+        self.assertContains(queue, pending.title)
+        self.assertRedirects(response, "/learning/materials/approvals/")
+        self.assertTrue(pending.is_validated)
+        self.assertEqual(getattr(pending, "approved_by_id", None), self.lecturer.pk)
+        self.assertIsNotNone(getattr(pending, "approved_at", None))
+
+    def test_lecturer_cannot_approve_another_courses_material(self):
+        pending = Material.objects.create(
+            course=self.course,
+            title="Course-restricted paper",
+            source_origin=Material.SourceOrigin.EXTERNAL,
+            is_validated=False,
+        )
+        self.client.login(username=self.other_lecturer.username, password="password123")
+
+        queue = self.client.get("/learning/materials/approvals/")
+        response = self.client.post(f"/learning/materials/approvals/{pending.pk}/approve/")
+        pending.refresh_from_db()
+
+        self.assertNotContains(queue, pending.title)
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(pending.is_validated)
+
+    def test_individual_approval_rejects_pending_internal_material(self):
+        internal = Material.objects.create(
+            course=self.course,
+            title="Internal draft",
+            source_origin=Material.SourceOrigin.INTERNAL,
+            is_validated=False,
+        )
+        self.client.login(username=self.lecturer.username, password="password123")
+
+        response = self.client.post(f"/learning/materials/approvals/{internal.pk}/approve/")
+        internal.refresh_from_db()
+
+        self.assertEqual(response.status_code, 404)
+        self.assertFalse(internal.is_validated)
+
+    def test_generic_admin_cannot_edit_material_approval_fields(self):
+        admin = User.objects.create_superuser(
+            username="approval_admin",
+            password="password123",
+            email="approval-admin@example.com",
+        )
+        pending = Material.objects.create(
+            course=self.course,
+            title="Admin form pending paper",
+            source_origin=Material.SourceOrigin.EXTERNAL,
+            is_validated=False,
+        )
+        self.client.login(username=admin.username, password="password123")
+
+        response = self.client.get(reverse("admin:learning_material_change", args=[pending.pk]))
+
+        self.assertNotContains(response, 'name="is_validated"', html=False)
+        self.assertNotContains(response, 'name="approved_by"', html=False)
+        self.assertNotContains(response, 'name="approved_at"', html=False)
+
+    def test_bulk_approval_only_updates_selected_materials_from_lecturers_courses(self):
+        selected = Material.objects.create(
+            course=self.course,
+            title="Selected paper",
+            source_origin=Material.SourceOrigin.EXTERNAL,
+            is_validated=False,
+        )
+        unselected = Material.objects.create(
+            course=self.course,
+            title="Unselected paper",
+            source_origin=Material.SourceOrigin.EXTERNAL,
+            is_validated=False,
+        )
+        other_course = Course.objects.create(code="OTHER101", title="Another Course")
+        unauthorized = Material.objects.create(
+            course=other_course,
+            title="Unauthorized paper",
+            source_origin=Material.SourceOrigin.EXTERNAL,
+            is_validated=False,
+        )
+        self.client.login(username=self.lecturer.username, password="password123")
+
+        response = self.client.post(
+            "/learning/materials/approvals/approve-selected/",
+            {"material_ids": [selected.pk, unauthorized.pk]},
+        )
+        selected.refresh_from_db()
+        unselected.refresh_from_db()
+        unauthorized.refresh_from_db()
+
+        self.assertRedirects(response, "/learning/materials/approvals/")
+        self.assertTrue(selected.is_validated)
+        self.assertFalse(unselected.is_validated)
+        self.assertFalse(unauthorized.is_validated)
 
 
 class QuizBuilderTests(TestCase):

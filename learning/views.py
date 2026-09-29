@@ -1,7 +1,9 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
+from django.utils import timezone
 from django.views.decorators.clickjacking import xframe_options_exempt
+from django.views.decorators.http import require_POST
 from django.http import FileResponse, Http404, HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -52,6 +54,8 @@ def material_list_view(request):
 @login_required
 def material_detail_view(request, pk):
     material = get_object_or_404(Material.objects.select_related("course", "topic"), pk=pk)
+    if not material.is_validated and not _can_approve_material(request.user, material):
+        raise Http404("Material not available.")
     can_fetch_transcript = _can_build_quizzes(request.user) and material.source_type == Material.SourceType.VIDEO
     return render(
         request,
@@ -62,6 +66,83 @@ def material_detail_view(request, pk):
             "can_build_quiz": _can_build_quizzes(request.user),
         },
     )
+
+
+def _approval_courses(user):
+    from .models import Course
+
+    if user.is_superuser or user.role == "admin":
+        return Course.objects.all()
+    if user.role == "lecturer":
+        return Course.objects.filter(lecturers=user)
+    return Course.objects.none()
+
+
+def _can_approve_material(user, material):
+    return user.is_authenticated and _approval_courses(user).filter(pk=material.course_id).exists()
+
+
+def _can_access_material_approvals(user):
+    return user.is_authenticated and (user.is_superuser or user.role in {"admin", "lecturer"})
+
+
+@login_required
+def material_approval_list_view(request):
+    if not _can_access_material_approvals(request.user):
+        return HttpResponseForbidden("Only lecturers and administrators can review materials.")
+    courses = _approval_courses(request.user)
+    pending_materials = Material.objects.select_related("course", "topic").filter(
+        course__in=courses,
+        source_origin=Material.SourceOrigin.EXTERNAL,
+        is_validated=False,
+    )
+    return render(
+        request,
+        "learning/material_approval_list.html",
+        {"pending_materials": pending_materials},
+    )
+
+
+@login_required
+@require_POST
+def material_approve_view(request, pk):
+    material = get_object_or_404(
+        Material.objects.select_related("course"),
+        pk=pk,
+        source_origin=Material.SourceOrigin.EXTERNAL,
+        is_validated=False,
+    )
+    if not _can_approve_material(request.user, material):
+        return HttpResponseForbidden("You cannot approve material for this course.")
+    material.is_validated = True
+    material.approved_by = request.user
+    material.approved_at = timezone.now()
+    material.save(update_fields=["is_validated", "approved_by", "approved_at"])
+    messages.success(request, f"Approved {material.title} for students.")
+    return redirect("learning:material_approval_list")
+
+
+@login_required
+@require_POST
+def material_approve_selected_view(request):
+    if not _can_access_material_approvals(request.user):
+        return HttpResponseForbidden("Only lecturers and administrators can review materials.")
+    material_ids = request.POST.getlist("material_ids")
+    approved_count = Material.objects.filter(
+        pk__in=material_ids,
+        course__in=_approval_courses(request.user),
+        source_origin=Material.SourceOrigin.EXTERNAL,
+        is_validated=False,
+    ).update(
+        is_validated=True,
+        approved_by=request.user,
+        approved_at=timezone.now(),
+    )
+    if approved_count:
+        messages.success(request, f"Approved {approved_count} material item{'' if approved_count == 1 else 's'} for students.")
+    else:
+        messages.info(request, "Select at least one pending material from your courses.")
+    return redirect("learning:material_approval_list")
 
 
 @login_required

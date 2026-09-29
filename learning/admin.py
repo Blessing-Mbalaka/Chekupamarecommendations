@@ -47,6 +47,8 @@ class MaterialAdmin(admin.ModelAdmin):
         "source_provider",
         "publication_year",
         "is_validated",
+        "approved_by",
+        "approved_at",
     )
     list_filter = ("source_origin", "source_type", "source_provider", "is_validated", "course")
     search_fields = (
@@ -64,7 +66,14 @@ class MaterialAdmin(admin.ModelAdmin):
         "doi",
         "isbn",
     )
-    readonly_fields = ("created_at", "semantic_text", "embedding")
+    readonly_fields = (
+        "created_at",
+        "semantic_text",
+        "embedding",
+        "is_validated",
+        "approved_by",
+        "approved_at",
+    )
     fieldsets = (
         ("Library placement", {"fields": ("course", "topic", "title", "description", "tags")} ),
         ("Structured publication", {"fields": (
@@ -74,7 +83,7 @@ class MaterialAdmin(admin.ModelAdmin):
         ("Files and links", {"fields": ("file", "external_url", "original_source_url", "source_preview_url")} ),
         ("Provenance", {"fields": (
             "source_origin", "source_provider", "source_endpoint", "source_record_id",
-            "source_citation", "uploaded_by", "is_validated", "created_at",
+            "source_citation", "uploaded_by", "is_validated", "approved_by", "approved_at", "created_at",
         )}),
         ("Search index", {"classes": ("collapse",), "fields": ("semantic_text", "embedding")} ),
     )
