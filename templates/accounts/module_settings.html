@@ -3,22 +3,31 @@
 {% block title %}Module settings · Learning Navigator{% endblock %}
 
 {% block content %}
-<section class="panel">
-    <p class="eyebrow">Settings</p>
-    <h2>{% if is_welcome %}Choose your modules{% else %}Your modules{% endif %}</h2>
-    {% if is_welcome %}<p class="muted">Welcome. Select all the modules you are taking so chats, materials, quizzes, and recommendations stay in the right learning context.</p>{% endif %}
+<section class="module-settings-shell">
+    <header class="module-settings-heading">
+        <div><p class="eyebrow">{% if is_welcome %}Welcome to your learning space{% else %}Settings{% endif %}</p><h1>{% if is_welcome %}Choose your modules{% else %}Your modules{% endif %}</h1></div>
+        <span class="module-settings-step">{% if is_welcome %}One quick step{% else %}Learning preferences{% endif %}</span>
+    </header>
+    <p class="module-settings-intro">Select every module you are taking. Your materials, quizzes, recommendations, and chat conversations will stay organized by module.</p>
 
     {% if has_available_modules %}
-        <form method="post" class="form-grid" data-wait-for-analytics>
+        <form method="post" class="module-settings-form" data-wait-for-analytics>
             {% csrf_token %}
             {{ form.non_field_errors }}
-            <div class="form-section">
+            <div class="module-choice-section">
                 {{ form.modules.errors }}
-                <h3>{{ form.modules.label }}</h3>
-                <p class="muted">{{ form.modules.help_text }}</p>
-                {{ form.modules }}
+                <div class="module-choice-grid">
+                    {% for option in form.modules %}
+                        <label class="module-choice-card" for="{{ option.id_for_label }}">
+                            {{ option.tag }}
+                            <span class="module-choice-icon" aria-hidden="true">📘</span>
+                            <span><strong>{{ option.choice_label }}</strong><small>Include this module in my learning space</small></span>
+                            <i aria-hidden="true">✓</i>
+                        </label>
+                    {% endfor %}
+                </div>
             </div>
-            <button type="submit" class="primary-button">Save module settings</button>
+            <div class="module-settings-actions"><span>You can change this selection later from Module settings.</span><button type="submit" class="primary-button">Save and continue</button></div>
             <div class="module-save-overlay" data-saving-overlay hidden role="status" aria-live="polite">
                 <div class="module-save-card">
                     <div class="module-save-orbit" aria-hidden="true">

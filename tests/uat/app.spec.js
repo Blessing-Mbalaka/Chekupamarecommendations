@@ -25,12 +25,12 @@ test("student selects multiple modules and opens a module-scoped chat", async ({
   await expect(page).toHaveURL(/\/dashboard\/$/);
 
   await page.getByRole("link", { name: "Module settings" }).click();
-  await expect(page.getByRole("heading", { name: "Your modules", level: 2 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Your modules", level: 1 })).toBeVisible();
   const modules = page.locator('input[name="modules"]');
   await expect(modules).toHaveCount(2);
-  for (let index = 0; index < 2; index += 1) await modules.nth(index).uncheck();
-  for (let index = 0; index < 2; index += 1) await modules.nth(index).check();
-  const saveClick = page.getByRole("button", { name: "Save module settings" }).click();
+  for (let index = 0; index < 2; index += 1) await modules.nth(index).setChecked(false, { force: true });
+  for (let index = 0; index < 2; index += 1) await modules.nth(index).setChecked(true, { force: true });
+  const saveClick = page.getByRole("button", { name: "Save and continue" }).click();
   await expect(page.getByText("Saving your modules…")).toBeVisible();
   await saveClick;
   await expect(page).toHaveURL(/\/dashboard\/$/);
@@ -64,8 +64,12 @@ test("lecturer sees curation controls but cannot use student module settings", a
 test("institution admin has overview and user-management access", async ({ page }) => {
   await signIn(page, "uat_admin");
   await expect(page).toHaveURL(/\/dashboard\/$/);
-  await expect(page.getByRole("link", { name: "Departments & modules" })).toBeVisible();
-  await page.getByRole("link", { name: "User management" }).click();
+  await page.getByRole("link", { name: "Course management" }).click();
+  await expect(page).toHaveURL(/\/institutions\/course-management\/$/);
+  await expect(page.getByRole("heading", { name: "Course management" })).toBeVisible();
+  await expect(page.getByText("Current login code")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Add module" })).toBeVisible();
+  await page.getByRole("navigation").getByRole("link", { name: "User management" }).click();
   await expect(page).toHaveURL(/\/manage\/users\/$/);
   await expect(page.getByText("@demo_student", { exact: true })).toBeVisible();
   await expect(page.getByText("@demo_lecturer", { exact: true })).toBeVisible();

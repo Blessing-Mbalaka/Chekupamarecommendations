@@ -104,6 +104,20 @@ class InstitutionTests(TestCase):
     def test_student_cannot_manage_structure(self):
         self.client.force_login(self.student)
         self.assertEqual(self.client.get(reverse('institutions:structure')).status_code, 403)
+        self.assertEqual(self.client.get(reverse('institutions:course_management')).status_code, 403)
+
+    def test_admin_can_manage_institution_login_code(self):
+        self.client.force_login(self.admin)
+        response = self.client.post(reverse('institutions:course_management'), {
+            'action': 'institution',
+            'institution-name': 'Johannesburg Business School',
+            'institution-slug': 'jbs-faculty',
+            'institution-email': 'admin@jbs.example',
+        })
+        self.assertRedirects(response, reverse('institutions:course_management'))
+        self.a.refresh_from_db()
+        self.assertEqual(self.a.slug, 'jbs-faculty')
+        self.assertEqual(self.a.email, 'admin@jbs.example')
 
     def test_structure_creates_scoped_department_module_topic(self):
         self.client.force_login(self.other)

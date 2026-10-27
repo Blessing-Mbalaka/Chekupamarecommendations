@@ -34,6 +34,26 @@ class StudentRegistrationForm(UserCreationForm):
             raise forms.ValidationError('Enter a valid institution invitation code.')
         return self.cleaned_data['invitation_code']
 
+
+class InstitutionIdentityForm(forms.ModelForm):
+    class Meta:
+        model = Institution
+        fields = ['name', 'slug', 'email']
+        labels = {
+            'name': 'Institution / faculty name',
+            'slug': 'Login code',
+            'email': 'Administrative email',
+        }
+        help_texts = {
+            'slug': 'Share this short code with lecturers, teaching assistants, and students for login.',
+        }
+
+    def clean_slug(self):
+        code = self.cleaned_data['slug'].strip().lower()
+        if Institution.objects.filter(slug__iexact=code).exclude(pk=self.instance.pk).exists():
+            raise forms.ValidationError('This institution or faculty code is already in use.')
+        return code
+
 class DepartmentForm(forms.ModelForm):
     class Meta:
         model = Department

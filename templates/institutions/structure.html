@@ -1,7 +1,71 @@
 {% extends 'base.html' %}
-{% block title %}Departments and modules{% endblock %}
-{% block content %}<section class="hero-card"><h1>{{ request.institution.name }}</h1><p>Institution code: <strong>{{ request.institution.slug }}</strong></p><p>Students register at <a href="{% url 'institutions:join' %}">Join your institution</a> using invitation code <code>{{ request.institution.join_code }}</code>. Assign their modules and teaching roles in <a href="{% url 'core:manage_users' %}">User management</a>.</p><form method="post">{% csrf_token %}<input type="hidden" name="action" value="rotate_invite"><button type="submit">Replace invitation code</button></form></section>
-<section class="hero-card"><h2>Departments and modules</h2>{% for department in departments %}<h3>{{ department.code }} · {{ department.name }} <a href="?edit=department&amp;id={{ department.pk }}">Edit</a></h3>{% for module in department.modules.all %}<p><strong>{{ module.code }} · {{ module.title }}</strong> <a href="?edit=module&amp;id={{ module.pk }}">Edit</a></p><ul>{% for topic in module.topics.all %}<li>{{ topic.title }} <a href="?edit=topic&amp;id={{ topic.pk }}">Edit</a></li>{% empty %}<li>No topics yet.</li>{% endfor %}</ul>{% empty %}<p>No modules yet.</p>{% endfor %}{% empty %}<p>Create a department, then add its modules and topics.</p>{% endfor %}</section>
-<section class="hero-card"><h2>Add a department</h2><form method="post">{% csrf_token %}<input type="hidden" name="action" value="department"><input type="hidden" name="record_id" value="{{ department_form.instance.pk|default:'' }}">{{ department_form.as_p }}<button class="primary-button" type="submit">Save department</button></form></section>
-<section class="hero-card"><h2>Add a module</h2><form method="post">{% csrf_token %}<input type="hidden" name="action" value="module"><input type="hidden" name="record_id" value="{{ module_form.instance.pk|default:'' }}">{{ module_form.as_p }}<button class="primary-button" type="submit">Save module</button></form></section>
-<section class="hero-card"><h2>Add a topic</h2><form method="post">{% csrf_token %}<input type="hidden" name="action" value="topic"><input type="hidden" name="record_id" value="{{ topic_form.instance.pk|default:'' }}">{{ topic_form.as_p }}<button class="primary-button" type="submit">Save topic</button></form></section>{% endblock %}
+{% block title %}Course management · Learning Navigator{% endblock %}
+{% block content %}
+<section class="course-management-hero">
+    <div>
+        <p class="eyebrow">Administrator workspace</p>
+        <h1>Course management</h1>
+        <p>Set the institution or faculty login code, build departments and modules, and organize the topics students will learn.</p>
+    </div>
+    <div class="course-management-code">
+        <span>Current login code</span>
+        <strong>{{ request.institution.slug }}</strong>
+        <small>Give this code to lecturers, TAs, and students.</small>
+    </div>
+</section>
+
+<section class="management-grid management-grid--top">
+    <article class="management-card">
+        <p class="eyebrow">Institution / faculty</p>
+        <h2>Login identity</h2>
+        <p class="muted">This name and code identify your organization on the login page.</p>
+        <form method="post" class="management-form">
+            {% csrf_token %}<input type="hidden" name="action" value="institution">
+            {{ institution_form.as_p }}
+            <button class="primary-button" type="submit">Save institution details</button>
+        </form>
+    </article>
+    <article class="management-card management-card--invite">
+        <p class="eyebrow">Student onboarding</p>
+        <h2>Invitation code</h2>
+        <p class="muted">This is separate from the login code. Send it only to students who should create an account.</p>
+        <code class="invitation-code">{{ request.institution.join_code }}</code>
+        <p><a class="text-link" href="{% url 'institutions:join' %}">Open student registration page</a></p>
+        <form method="post">{% csrf_token %}<input type="hidden" name="action" value="rotate_invite"><button class="secondary-button" type="submit">Replace invitation code</button></form>
+        <p class="muted">Create lecturer, TA, and managed student accounts from <a href="{% url 'core:manage_users' %}">User management</a>.</p>
+    </article>
+</section>
+
+<section class="management-card curriculum-card">
+    <div class="section-heading-row">
+        <div><p class="eyebrow">Curriculum</p><h2>Departments, modules and topics</h2></div>
+        <span>{{ departments|length }} department{{ departments|length|pluralize }}</span>
+    </div>
+    <div class="department-grid">
+        {% for department in departments %}
+            <article class="department-card">
+                <header><div><span>{{ department.code }}</span><h3>{{ department.name }}</h3></div><a href="?edit=department&amp;id={{ department.pk }}">Edit</a></header>
+                <div class="module-stack">
+                    {% for module in department.modules.all %}
+                        <div class="module-admin-card">
+                            <div><strong>{{ module.code }} · {{ module.title }}</strong><a href="?edit=module&amp;id={{ module.pk }}">Edit module</a></div>
+                            <p>{{ module.description|default:"No module description yet." }}</p>
+                            <div class="topic-chips">
+                                {% for topic in module.topics.all %}<a href="?edit=topic&amp;id={{ topic.pk }}">{{ topic.title }}</a>{% empty %}<span>No topics yet</span>{% endfor %}
+                            </div>
+                        </div>
+                    {% empty %}<p class="empty-management-state">No modules in this department yet.</p>{% endfor %}
+                </div>
+            </article>
+        {% empty %}
+            <div class="empty-management-state"><strong>Start by creating a department.</strong><p>Departments group the modules offered by this institution or faculty.</p></div>
+        {% endfor %}
+    </div>
+</section>
+
+<section class="management-grid management-grid--forms">
+    <article class="management-card"><p class="eyebrow">Step 1</p><h2>{% if department_form.instance.pk %}Edit department{% else %}Add department{% endif %}</h2><form method="post" class="management-form">{% csrf_token %}<input type="hidden" name="action" value="department"><input type="hidden" name="record_id" value="{{ department_form.instance.pk|default:'' }}">{{ department_form.as_p }}<button class="primary-button" type="submit">Save department</button></form></article>
+    <article class="management-card"><p class="eyebrow">Step 2</p><h2>{% if module_form.instance.pk %}Edit module{% else %}Add module{% endif %}</h2><form method="post" class="management-form">{% csrf_token %}<input type="hidden" name="action" value="module"><input type="hidden" name="record_id" value="{{ module_form.instance.pk|default:'' }}">{{ module_form.as_p }}<button class="primary-button" type="submit">Save module</button></form></article>
+    <article class="management-card"><p class="eyebrow">Step 3</p><h2>{% if topic_form.instance.pk %}Edit topic{% else %}Add topic{% endif %}</h2><form method="post" class="management-form">{% csrf_token %}<input type="hidden" name="action" value="topic"><input type="hidden" name="record_id" value="{{ topic_form.instance.pk|default:'' }}">{{ topic_form.as_p }}<button class="primary-button" type="submit">Save topic</button></form></article>
+</section>
+{% endblock %}

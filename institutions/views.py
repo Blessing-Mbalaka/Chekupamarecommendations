@@ -7,14 +7,21 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 from accounts.models import User
 from learning.models import Course, Topic
-from .forms import InstitutionRegistrationForm, StudentRegistrationForm, DepartmentForm, ModuleForm, TopicForm
+from .forms import (
+    DepartmentForm,
+    InstitutionIdentityForm,
+    InstitutionRegistrationForm,
+    ModuleForm,
+    StudentRegistrationForm,
+    TopicForm,
+)
 from .models import Institution, Department
 from .tenancy import institution_context
 
 
 def register_institution(request):
     if request.user.is_authenticated:
-        return redirect('institutions:structure')
+        return redirect('institutions:course_management')
     form = InstitutionRegistrationForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():
         with transaction.atomic():
@@ -26,7 +33,7 @@ def register_institution(request):
                 user.is_staff = user.is_superuser = False
                 user.save()
         login(request, user, backend='django.contrib.auth.backends.ModelBackend')
-        return redirect('institutions:structure')
+        return redirect('institutions:course_management')
     return render(request, 'institutions/register.html', {'form': form, 'heading': 'Register your institution'})
 
 
@@ -58,14 +65,32 @@ def structure(request):
     department_form = DepartmentForm(prefix='department', instance=editing if edit_kind == 'department' else None)
     module_form = ModuleForm(prefix='module', instance=editing if edit_kind == 'module' else None)
     topic_form = TopicForm(prefix='topic', instance=editing if edit_kind == 'topic' else None)
+    institution_form = InstitutionIdentityForm(prefix='institution', instance=request.institution)
     if request.method == 'POST':
         action = request.POST.get('action')
+        if action == 'institution':
+            institution_form = InstitutionIdentityForm(
+                request.POST,
+                prefix='institution',
+                instance=request.institution,
+            )
+            if institution_form.is_valid():
+                institution_form.save()
+                messages.success(request, 'Institution / faculty details and login code updated.')
+                return redirect('institutions:course_management')
+            return render(request, 'institutions/structure.html', {
+                'institution_form': institution_form,
+                'department_form': department_form,
+                'module_form': module_form,
+                'topic_form': topic_form,
+                'departments': Department.objects.prefetch_related('modules__topics'),
+            })
         if action == 'rotate_invite':
             from .models import join_token
             request.institution.join_code = join_token()
             request.institution.save(update_fields=['join_code'])
             messages.success(request, 'Invitation code replaced. The previous code no longer works.')
-            return redirect('institutions:structure')
+            return redirect('institutions:course_management')
         choices = {'department': (DepartmentForm, Department), 'module': (ModuleForm, Course), 'topic': (TopicForm, Topic)}
         if action not in choices:
             raise PermissionDenied('Unknown action.')
@@ -76,11 +101,12 @@ def structure(request):
         if form.is_valid():
             form.save()
             messages.success(request, f'{action.title()} saved.')
-            return redirect('institutions:structure')
+            return redirect('institutions:course_management')
         if action == 'department': department_form = form
         elif action == 'module': module_form = form
         else: topic_form = form
     return render(request, 'institutions/structure.html', {
+        'institution_form': institution_form,
         'department_form': department_form, 'module_form': module_form, 'topic_form': topic_form,
         'departments': Department.objects.prefetch_related('modules__topics'),
     })
