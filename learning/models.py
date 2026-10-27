@@ -1,11 +1,14 @@
+from institutions.models import InstitutionOwnedModel
+from institutions.storage import material_upload_path
 from django.conf import settings
 from django.db import models
 from django.urls import reverse
 from urllib.parse import parse_qs, urlparse
 
 
-class Course(models.Model):
-    code = models.CharField(max_length=30, unique=True)
+class Course(InstitutionOwnedModel):
+    department = models.ForeignKey("institutions.Department", on_delete=models.PROTECT, null=True, blank=True, related_name="modules")
+    code = models.CharField(max_length=30)
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     lecturers = models.ManyToManyField(
@@ -26,12 +29,14 @@ class Course(models.Model):
 
     class Meta:
         ordering = ["code"]
+        verbose_name = "Module"
+        constraints = [models.UniqueConstraint(fields=["institution", "code"], name="module_code_per_institution")]
 
     def __str__(self) -> str:
         return f"{self.code} - {self.title}"
 
 
-class Topic(models.Model):
+class Topic(InstitutionOwnedModel):
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name="topics")
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
@@ -44,7 +49,7 @@ class Topic(models.Model):
         return f"{self.course.code}: {self.title}"
 
 
-class Material(models.Model):
+class Material(InstitutionOwnedModel):
     class SourceOrigin(models.TextChoices):
         INTERNAL = "internal", "Internal Upload"
         EXTERNAL = "external", "External Source"
@@ -87,7 +92,7 @@ class Material(models.Model):
         blank=True,
         help_text="Upstream record identifier such as DOI, OpenAlex ID, Springer identifier, or video ID.",
     )
-    file = models.FileField(upload_to="materials/", blank=True)
+    file = models.FileField(upload_to=material_upload_path, blank=True)
     external_url = models.URLField(blank=True)
     original_source_url = models.URLField(blank=True)
     source_preview_url = models.CharField(
@@ -239,7 +244,7 @@ class Material(models.Model):
         return list(dict.fromkeys(labels))
 
 
-class BaselineAssessment(models.Model):
+class BaselineAssessment(InstitutionOwnedModel):
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name="baseline_assessments")
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
@@ -253,7 +258,7 @@ class BaselineAssessment(models.Model):
         return f"{self.course.code}: {self.title}"
 
 
-class AssessmentQuestion(models.Model):
+class AssessmentQuestion(InstitutionOwnedModel):
     class QuestionType(models.TextChoices):
         MULTIPLE_CHOICE = "mcq", "Multiple Choice"
         SHORT_TEXT = "text", "Short Text"
@@ -274,7 +279,7 @@ class AssessmentQuestion(models.Model):
         return self.prompt[:80]
 
 
-class AssessmentAttempt(models.Model):
+class AssessmentAttempt(InstitutionOwnedModel):
     assessment = models.ForeignKey(BaselineAssessment, on_delete=models.CASCADE, related_name="attempts")
     student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="assessment_attempts")
     score = models.DecimalField(max_digits=5, decimal_places=2, default=0)
@@ -287,7 +292,7 @@ class AssessmentAttempt(models.Model):
         return f"{self.student} - {self.assessment} ({self.score}%)"
 
 
-class AttemptAnswer(models.Model):
+class AttemptAnswer(InstitutionOwnedModel):
     attempt = models.ForeignKey(AssessmentAttempt, on_delete=models.CASCADE, related_name="answers")
     question = models.ForeignKey(AssessmentQuestion, on_delete=models.CASCADE, related_name="answers")
     answer_text = models.TextField(blank=True)
@@ -298,7 +303,7 @@ class AttemptAnswer(models.Model):
         return f"Answer to {self.question_id}"
 
 
-class Quiz(models.Model):
+class Quiz(InstitutionOwnedModel):
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name="quizzes")
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
@@ -320,7 +325,7 @@ class Quiz(models.Model):
         return reverse("learning:quiz_take", args=[self.pk])
 
 
-class QuizQuestion(models.Model):
+class QuizQuestion(InstitutionOwnedModel):
     class QuestionType(models.TextChoices):
         MULTIPLE_CHOICE = "mcq", "Multiple Choice"
         SHORT_TEXT = "text", "Short Text"
@@ -347,7 +352,7 @@ class QuizQuestion(models.Model):
         return self.prompt[:80]
 
 
-class QuizAttempt(models.Model):
+class QuizAttempt(InstitutionOwnedModel):
     quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE, related_name="attempts")
     student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="quiz_attempts")
     score = models.DecimalField(max_digits=7, decimal_places=2, default=0)
@@ -362,7 +367,7 @@ class QuizAttempt(models.Model):
         return round((float(self.score) / self.max_score) * 100, 2) if self.max_score else 0
 
 
-class QuizAnswer(models.Model):
+class QuizAnswer(InstitutionOwnedModel):
     attempt = models.ForeignKey(QuizAttempt, on_delete=models.CASCADE, related_name="answers")
     question = models.ForeignKey(QuizQuestion, on_delete=models.CASCADE, related_name="answers")
     response = models.TextField(blank=True)
@@ -370,7 +375,7 @@ class QuizAnswer(models.Model):
     awarded_points = models.DecimalField(max_digits=6, decimal_places=2, default=0)
 
 
-class LecturerPrompt(models.Model):
+class LecturerPrompt(InstitutionOwnedModel):
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name="lecturer_prompts")
     title = models.CharField(max_length=255)
     prompt_text = models.TextField()

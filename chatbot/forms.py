@@ -6,7 +6,7 @@ class ChatMessageForm(forms.Form):
         widget=forms.Textarea(
             attrs={
                 "rows": 3,
-                "placeholder": "Ask a question about your course, challenges, or what to study next.",
+                "placeholder": "Ask a question about your module, challenges, or what to study next.",
             }
         )
     )

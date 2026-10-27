@@ -32,6 +32,7 @@ class ChatbotFlowTests(TestCase):
         )
         StudentProfile.objects.create(user=self.student, challenges="I need simpler examples.")
         self.course = Course.objects.create(code="PHY101", title="Physics")
+        self.course.students.add(self.student)
         self.material = Material.objects.create(
             course=self.course,
             title="Newtonian Mechanics Video",
@@ -200,7 +201,7 @@ class ChatbotFlowTests(TestCase):
         self.client.login(username="student3", password="password123")
         response = self.client.post(reverse("chatbot:chat"), {"message": "Explain quantum fields"}, follow=True)
 
-        self.assertContains(response, "I can’t answer that from the indexed course library yet")
+        self.assertContains(response, "Please wait for your lecturer to upload and validate learning content for Physics")
         self.assertContains(response, "no outside knowledge was used")
         self.assertContains(response, "Additional learning material")
         self.assertContains(response, "Optional and ungraded")
@@ -440,5 +441,77 @@ class ChatbotFlowTests(TestCase):
         self.assertIn("automatically filtered", payload["text"])
         self.assertFalse(AnalyzedQuestion.objects.filter(message=message).exists())
         mock_discovery.assert_not_called()
+
+
+class CourseScopingTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.student = User.objects.create_user(username="s1", password="pass12345!", email="s1@example.com")
+        self.systems = Course.objects.create(code="SYS101", title="Systems Thinking")
+        self.physics = Course.objects.create(code="PHY101", title="Physics")
+        self.systems.students.add(self.student)
+        self.client.force_login(self.student)
+
+    def test_single_enrollment_binds_session_to_course(self):
+        self.client.get(reverse("chatbot:chat"))
+        session = ChatSession.objects.get(student=self.student)
+        self.assertEqual(session.course, self.systems)
+
+    def test_cannot_select_unenrolled_course(self):
+        self.client.get(reverse("chatbot:chat"), {"course": self.physics.pk})
+        self.assertFalse(ChatSession.objects.filter(course=self.physics).exists())
+
+    def test_multi_enrollment_requires_choice_and_separates_sessions(self):
+        self.physics.students.add(self.student)
+        response = self.client.get(reverse("chatbot:chat"))
+        self.assertIsNone(response.context["session"])
+        self.client.get(reverse("chatbot:chat"), {"course": self.systems.pk})
+        self.client.get(reverse("chatbot:chat"), {"course": self.physics.pk})
+        self.assertEqual(ChatSession.objects.filter(student=self.student).count(), 2)
+
+    def test_not_enrolled_student_cannot_chat(self):
+        self.systems.students.clear()
+        response = self.client.post(reverse("chatbot:chat_stream"), {"message": "hi"})
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(ChatMessage.objects.exists())
+
+    def test_legacy_null_course_session_is_adopted(self):
+        legacy = ChatSession.objects.create(student=self.student)
+        self.client.get(reverse("chatbot:chat"))
+        legacy.refresh_from_db()
+        self.assertEqual(legacy.course, self.systems)
+
+    @patch("chatbot.services.chat_engine.generate_grounded_response_for_query")
+    def test_engine_refuses_unscoped_student_session(self, mock_generate):
+        session = ChatSession.objects.create(student=self.student)
+        message = ChatMessage.objects.create(session=session, sender="student", content="x")
+        payload = generate_bot_response(message)
+        self.assertTrue(payload["metadata"]["course_required"])
+        mock_generate.assert_not_called()
+
+    def test_admin_and_lecturer_also_require_explicit_course_scope(self):
+        lecturer = User.objects.create_user(
+            username="lecturer-scope", password="pass12345!", email="lecturer-scope@example.com", role="lecturer"
+        )
+        admin = User.objects.create_user(
+            username="admin-scope", password="pass12345!", email="admin-scope@example.com", role="admin"
+        )
+        for user in (lecturer, admin):
+            session = ChatSession.objects.create(student=user)
+            message = ChatMessage.objects.create(session=session, sender="student", content="x")
+            payload = generate_bot_response(message)
+            self.assertTrue(payload["metadata"]["course_required"])
+
+    def test_lecturer_cannot_select_course_they_do_not_teach(self):
+        lecturer = User.objects.create_user(
+            username="lecturer-one", password="pass12345!", email="lecturer-one@example.com", role="lecturer"
+        )
+        self.systems.lecturers.add(lecturer)
+        self.client.force_login(lecturer)
+
+        response = self.client.get(reverse("chatbot:chat"), {"course": self.physics.pk})
+
+        self.assertEqual(response.context["session"].course, self.systems)
+        self.assertFalse(ChatSession.objects.filter(student=lecturer, course=self.physics).exists())
 
 # Create your tests here.

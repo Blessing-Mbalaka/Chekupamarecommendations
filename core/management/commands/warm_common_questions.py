@@ -1,3 +1,4 @@
+from institutions.tenancy import institution_job
 from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
@@ -15,6 +16,7 @@ class Command(BaseCommand):
         parser.add_argument("--course-id", type=int, default=0, help="Optional course id used to scope retrieval.")
         parser.add_argument("--limit", type=int, default=0, help="Optional maximum number of questions to warm.")
 
+    @institution_job
     def handle(self, *args, **options):
         course = None
         if options["course_id"]:

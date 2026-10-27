@@ -52,6 +52,29 @@ class SemanticChunkingTests(TestCase):
         self.assertEqual(chunk.metadata["course_id"], self.course.pk)
         mock_embed.assert_called_once()
 
+    @patch("ingestion.services.vector_store.embed_texts", return_value=[([0.1], "test"), ([0.2], "test")])
+    def test_pptx_is_extracted_per_slide_with_slide_numbers(self, _mock_embed):
+        import io
+
+        from django.core.files.base import ContentFile
+        from pptx import Presentation
+
+        deck = Presentation()
+        for title, body in (("Feedback loops", "Reinforcing loops amplify change. " * 40),
+                            ("Boundaries", "A system boundary defines scope. " * 40)):
+            slide = deck.slides.add_slide(deck.slide_layouts[1])
+            slide.shapes.title.text = title
+            slide.placeholders[1].text = body
+        buffer = io.BytesIO()
+        deck.save(buffer)
+        self.material.file.save("deck.pptx", ContentFile(buffer.getvalue()), save=True)
+
+        chunks = index_material(self.material)
+
+        self.assertTrue(all(chunk.page_number is not None for chunk in chunks))
+        self.assertIn("Reinforcing loops amplify change.", " ".join(chunk.text for chunk in chunks))
+        self.assertIn("system boundary", " ".join(chunk.text for chunk in chunks))
+
 
 class HybridRetrievalTests(TestCase):
     def setUp(self):
@@ -103,3 +126,19 @@ class HybridRetrievalTests(TestCase):
         self.assertGreater(matches[0]["score"], 0)
         self.assertGreater(matches[0]["semantic_score"], 0)
         self.assertGreater(matches[0]["bm25_score"], 0)
+
+    def test_retrieval_rejects_missing_course_scope(self):
+        with self.assertRaisesRegex(ValueError, "course is required"):
+            retrieve_chunks("anything", course=None)
+
+    @patch("ingestion.services.vector_store.embed_text", return_value=([], "fallback"))
+    def test_retrieval_never_returns_another_courses_chunks(self, _mock_embed):
+        other_course = Course.objects.create(code="OTHER101", title="Other Course")
+        other_material = Material.objects.create(course=other_course, title="Other notes", is_validated=True)
+        ContentChunk.objects.create(material=self.material, ordinal=0, text="sharedterm allowed course evidence")
+        ContentChunk.objects.create(material=other_material, ordinal=0, text="sharedterm forbidden course evidence")
+
+        matches = retrieve_chunks("sharedterm", course=self.course, limit=10)
+
+        self.assertTrue(matches)
+        self.assertEqual({match["material"].course_id for match in matches}, {self.course.pk})

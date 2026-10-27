@@ -18,14 +18,21 @@ from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.conf import settings
 from django.conf.urls.static import static
-from django.urls import include, path
+from django.urls import include, path, re_path
+from institutions.media import protected_media
 
 from accounts.views import DemoLoginView, superuser_login_view
+
+handler400 = 'core.error_views.bad_request'
+handler403 = 'core.error_views.permission_denied'
+handler404 = 'core.error_views.page_not_found'
+handler500 = 'core.error_views.server_error'
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('core.urls')),
     path('accounts/', include('accounts.urls')),
+    path('institutions/', include('institutions.urls')),
     path('learning/', include('learning.urls')),
     path('chatbot/', include('chatbot.urls')),
     path('analytics/', include('analytics_app.urls')),
@@ -36,7 +43,18 @@ urlpatterns = [
     ),
     path('curation/login/', superuser_login_view, name='superuser_login'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
+    path(
+        'accounts/reset/<uidb64>/<token>/',
+        auth_views.PasswordResetConfirmView.as_view(),
+        name='password_reset_confirm',
+    ),
+    path(
+        'accounts/reset/complete/',
+        auth_views.PasswordResetCompleteView.as_view(),
+        name='password_reset_complete',
+    ),
 ]
 
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+urlpatterns += [
+    re_path(r'^media/(?P<path>.*)$', protected_media),
+]

@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}User management{% endblock %}
+
+{% block content %}
+<section class="panel">
+    <p class="eyebrow">Administration</p>
+    <h2>User management</h2>
+    <p class="muted">Create students, lecturers, teaching assistants and admins, and assign each to their courses.</p>
+    <form method="get" class="button-row">
+        <input type="text" name="q" value="{{ filters.q }}" placeholder="Search name, username, email">
+        <select name="role">
+            <option value="">All roles</option>
+            {% for value, label in roles %}<option value="{{ value }}" {% if filters.role == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+        <select name="course">
+            <option value="">All courses</option>
+            {% for course in courses %}<option value="{{ course.pk }}" {% if filters.course == course.pk|stringformat:"s" %}selected{% endif %}>{{ course.code }}</option>{% endfor %}
+        </select>
+        <button type="submit" class="secondary-button">Filter</button>
+        <a class="primary-button" href="{% url 'core:manage_user_new' %}">Add user</a>
+    </form>
+</section>
+
+<section class="panel">
+    {% for row in rows %}
+        <article class="library-material-row">
+            <div>
+                <h4>{{ row.user.get_full_name|default:row.user.username }} <span class="muted">@{{ row.user.username }}</span></h4>
+                <p class="muted">
+                    {{ row.user.get_role_display }}{% if not row.user.is_active %} · Deactivated{% endif %}
+                    · {{ row.user.email }}
+                    {% for role, codes in row.courses.items %} · {{ role }}: {{ codes|join:", " }}{% endfor %}
+                </p>
+            </div>
+            <div class="button-row">
+                <a class="ghost-button" href="{% url 'core:manage_user_edit' row.user.pk %}">Edit</a>
+                {% if row.user.is_active %}
+                <form method="post" action="{% url 'core:manage_user_invite' row.user.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="ghost-button">Send invite/reset</button>
+                </form>
+                {% endif %}
+                <form method="post" action="{% url 'core:manage_user_toggle' row.user.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="ghost-button">{% if row.user.is_active %}Deactivate{% else %}Activate{% endif %}</button>
+                </form>
+            </div>
+        </article>
+    {% empty %}
+        <p class="muted">No users match these filters.</p>
+    {% endfor %}
+</section>
+{% endblock %}

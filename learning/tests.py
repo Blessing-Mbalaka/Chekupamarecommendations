@@ -1,3 +1,4 @@
+from django.conf import settings
 from urllib.error import HTTPError
 from unittest.mock import patch
 from tempfile import TemporaryDirectory
@@ -24,6 +25,7 @@ class AssessmentServiceTests(TestCase):
             email="student1@example.com",
         )
         self.course = Course.objects.create(code="CSC101", title="Intro to Computing")
+        self.course.students.add(self.student)
         self.topic = Topic.objects.create(course=self.course, title="Algorithms")
         self.assessment = BaselineAssessment.objects.create(course=self.course, title="Week 1 Baseline")
         self.mcq = AssessmentQuestion.objects.create(
@@ -57,6 +59,7 @@ class AssessmentServiceTests(TestCase):
         self.assertEqual(float(attempt.score), 100.0)
         self.assertEqual(attempt.answers.count(), 2)
 
+    @patch("learning.views.OPENALEX_API_KEY", "test-key")
     @patch("learning.views.urllib_request.urlopen")
     def test_openalex_pdf_proxy_streams_pdf(self, mock_urlopen):
         class _MockResponse:
@@ -96,7 +99,7 @@ class AssessmentServiceTests(TestCase):
         self.assertEqual(material.preview_url, "/learning/materials/openalex/W123/pdf/")
 
     def test_uploaded_pdf_preview_is_authenticated_and_same_origin(self):
-        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+        with TemporaryDirectory(dir=settings.BASE_DIR) as media_root, override_settings(MEDIA_ROOT=media_root):
             material = Material.objects.create(
                 course=self.course,
                 title="Uploaded journal",
@@ -113,6 +116,7 @@ class AssessmentServiceTests(TestCase):
             self.assertEqual(response["Content-Security-Policy"], "frame-ancestors 'self'")
             response.close()
 
+    @patch("learning.views.OPENALEX_API_KEY", "test-key")
     @patch("learning.views.urllib_request.urlopen")
     def test_openalex_pdf_proxy_redirects_to_fallback_on_http_error(self, mock_urlopen):
         mock_urlopen.side_effect = HTTPError(
@@ -336,7 +340,7 @@ class MaterialApprovalTests(TestCase):
         pending.refresh_from_db()
 
         self.assertNotContains(queue, pending.title)
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 404)
         self.assertFalse(pending.is_validated)
 
     def test_individual_approval_rejects_pending_internal_material(self):

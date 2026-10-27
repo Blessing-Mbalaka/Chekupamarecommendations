@@ -1,3 +1,4 @@
+from institutions.models import InstitutionOwnedModel
 from django.conf import settings
 from django.db import models
 
@@ -5,7 +6,7 @@ from chatbot.models import ChatMessage, ChatSession
 from learning.models import Course, Material
 
 
-class AnalyticsEvent(models.Model):
+class AnalyticsEvent(InstitutionOwnedModel):
     class EventType(models.TextChoices):
         PAGE_VIEW = "page_view", "Page View"
         CLICK = "click", "Click"
@@ -38,7 +39,7 @@ class AnalyticsEvent(models.Model):
         return f"{self.event_type} on {self.path}"
 
 
-class QuestionTheme(models.Model):
+class QuestionTheme(InstitutionOwnedModel):
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name="question_themes")
     label = models.CharField(max_length=160)
     description = models.TextField(blank=True)
@@ -64,7 +65,7 @@ class QuestionTheme(models.Model):
         return f"{self.course.code}: {self.label}"
 
 
-class AnalyzedQuestion(models.Model):
+class AnalyzedQuestion(InstitutionOwnedModel):
     message = models.OneToOneField(
         ChatMessage,
         on_delete=models.SET_NULL,
@@ -93,7 +94,7 @@ class AnalyzedQuestion(models.Model):
         return self.text[:80]
 
 
-class AnalyticsQuestionnaire(models.Model):
+class AnalyticsQuestionnaire(InstitutionOwnedModel):
     title = models.CharField(max_length=180)
     purpose = models.TextField(help_text="Explain exactly why this information is being collected and how it will be used.")
     consent_text = models.TextField(
@@ -125,7 +126,7 @@ class AnalyticsQuestionnaire(models.Model):
         return self.title
 
 
-class AnalyticsQuestion(models.Model):
+class AnalyticsQuestion(InstitutionOwnedModel):
     class QuestionType(models.TextChoices):
         GENDER = "gender", "Gender (optional demographic)"
         REGION = "region", "Region (coarse geography)"
@@ -164,7 +165,7 @@ class AnalyticsQuestion(models.Model):
         return []
 
 
-class AnalyticsQuestionnaireResponse(models.Model):
+class AnalyticsQuestionnaireResponse(InstitutionOwnedModel):
     questionnaire = models.ForeignKey(AnalyticsQuestionnaire, on_delete=models.CASCADE, related_name="responses")
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="analytics_questionnaire_responses")
     answers = models.JSONField(default=dict)

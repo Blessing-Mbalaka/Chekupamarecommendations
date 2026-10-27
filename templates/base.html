@@ -9,24 +9,25 @@
     <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20260814-analytics">
 </head>
 <body data-track-path="{{ request.path }}">
-    <div class="shell {% if not user.is_authenticated %}shell--public{% endif %}">
-        {% if user.is_authenticated %}
+    <div class="shell {% if not user.is_authenticated or '/login/' in request.path %}shell--public{% endif %}">
+        {% if user.is_authenticated and '/login/' not in request.path %}
             <aside class="sidebar">
                 <div class="sidebar-inner">
                     <div class="sidebar-brand">
-                        <a href="{% url 'core:dashboard' %}" class="uj-brand" aria-label="UJ Learning Navigator home">
-                            <img src="{% static 'img/uj-logo.png' %}" alt="University of Johannesburg">
+                        <a href="{% url 'core:dashboard' %}" class="uj-brand" aria-label="Learning Navigator home">
+                            {% if user.is_authenticated and user.institution.is_original %}<img src="{% static 'img/uj-logo.png' %}" alt="University of Johannesburg">{% elif user.is_authenticated %}<strong>{{ user.institution.name }}</strong>{% else %}<strong>Learning Navigator</strong>{% endif %}
                             <span>Learning Navigator</span>
                         </a>
                         <div class="sidebar-user">
                             <span class="user-avatar">{{ user.username|first|upper }}</span>
                             <div>
                                 <strong>{{ user.get_full_name|default:user.username }}</strong>
-                                <span>{{ user.get_role_display }}</span>
+                                <span>{{ user.get_role_display }} · {{ user.institution.name }}</span>
                             </div>
                         </div>
                     </div>
                     <nav class="nav-links">
+                        {% if user.role == 'admin' or user.is_superuser %}<a class="nav-link" href="{% url 'institutions:structure' %}">Departments &amp; modules</a>{% endif %}
                         <a href="{% url 'core:dashboard' %}" class="nav-link {% if request.path == '/dashboard/' %}nav-link--active{% endif %}">
                             <span class="nav-icon" aria-hidden="true">
                                 <svg viewBox="0 0 24 24" focusable="false"><path d="M3 13h8V3H3zm10 8h8V11h-8zM3 21h8v-6H3zm10-10h8V3h-8z"/></svg>
@@ -39,6 +40,12 @@
                             </span>
                             <span>Profile</span>
                         </a>
+                        {% if user.role == 'student' %}
+                            <a href="{% url 'accounts:module_settings' %}" class="nav-link {% if request.path == '/accounts/settings/modules/' %}nav-link--active{% endif %}">
+                                <span class="nav-icon" aria-hidden="true">⚙</span>
+                                <span>Module settings</span>
+                            </a>
+                        {% endif %}
                         {% if analytics_questionnaire %}
                             <button type="button" class="nav-link survey-nav-entry" data-survey-open data-analytics-label="Open student access survey">
                                 <span class="nav-icon" aria-hidden="true">
@@ -51,12 +58,26 @@
                             <span class="nav-icon" aria-hidden="true">
                                 <svg viewBox="0 0 24 24" focusable="false"><path d="M4 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4zm2 2v12h12V6zm14 1 2 1v11a2 2 0 0 1-2 2h-1V7z"/></svg>
                             </span>
-                            <span>Materials</span>
+                            <span>Material</span>
                         </a>
                         {% if user.is_superuser or user.role == 'admin' or user.role == 'lecturer' %}
                             <a href="{% url 'learning:material_approval_list' %}" class="nav-link {% if '/learning/materials/approvals/' in request.path %}nav-link--active{% endif %}">
                                 <span class="nav-icon" aria-hidden="true">✓</span>
                                 <span>Material approvals</span>
+                            </a>
+                        {% endif %}
+                        {% if user.is_superuser or user.role == 'admin' or user.role == 'lecturer' %}
+                            <a href="{% url 'core:manage_materials' %}" class="nav-link {% if '/manage/materials/' in request.path %}nav-link--active{% endif %}">
+                                <span class="nav-icon" aria-hidden="true">✎</span>
+                                <span>Manage material</span>
+                            </a>
+                        {% endif %}
+                        {% if user.is_superuser or user.role == 'admin' %}
+                            <a href="{% url 'core:manage_users' %}" class="nav-link {% if '/manage/users/' in request.path %}nav-link--active{% endif %}">
+                                <span class="nav-icon" aria-hidden="true" style="color:#fff">
+                                    <svg viewBox="0 0 24 24" focusable="false"><path d="M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9zm0 2c-4 0-8 2-8 5v2h16v-2c0-3-4-5-8-5z"/></svg>
+                                </span>
+                                <span>User management</span>
                             </a>
                         {% endif %}
                         <a href="{% url 'learning:quiz_list' %}" class="nav-link {% if '/learning/quizzes/' in request.path %}nav-link--active{% endif %}">
@@ -133,10 +154,10 @@
                 </div>
             </aside>
         {% endif %}
-        <main class="content {% if not user.is_authenticated %}content--full{% endif %} {% if request.path|slice:':9' == '/chatbot/' %}content--chat{% endif %}">
-            {% if not user.is_authenticated %}
-                <a href="{% url 'core:home' %}" class="public-brand" aria-label="UJ Learning Navigator home">
-                    <img src="{% static 'img/uj-logo.png' %}" alt="University of Johannesburg">
+        <main class="content {% if not user.is_authenticated or '/login/' in request.path %}content--full{% endif %} {% if request.path|slice:':9' == '/chatbot/' %}content--chat{% endif %}">
+            {% if not user.is_authenticated or '/login/' in request.path %}
+                <a href="{% url 'core:home' %}" class="public-brand" aria-label="Learning Navigator home">
+                    {% if user.is_authenticated and user.institution.is_original %}<img src="{% static 'img/uj-logo.png' %}" alt="University of Johannesburg">{% elif user.is_authenticated %}<strong>{{ user.institution.name }}</strong>{% else %}<strong>Learning Navigator</strong>{% endif %}
                     <span>Learning Navigator</span>
                 </a>
             {% endif %}
@@ -153,7 +174,7 @@
         </main>
     </div>
     {% include "analytics_app/_questionnaire_modal.html" %}
-    {% if user.is_authenticated %}
+    {% if user.is_authenticated and '/login/' not in request.path %}
         <script>
         (() => {
             const getCsrfToken = () => {
@@ -175,8 +196,9 @@
                 referrer_path: document.referrer ? (() => { try { return new URL(document.referrer).pathname; } catch (_) { return ""; } })() : "",
             });
 
+            const pendingAnalytics = new Set();
             const sendAnalytics = (payload, keepalive = true) => {
-                return fetch("{% url 'analytics_app:track' %}", {
+                const request = fetch("{% url 'analytics_app:track' %}", {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
@@ -190,6 +212,18 @@
                         metadata: { ...pageContext(), ...(payload.metadata || {}) },
                     }),
                 }).catch(() => {});
+                pendingAnalytics.add(request);
+                request.then(() => pendingAnalytics.delete(request));
+                return request;
+            };
+
+            const waitForAnalytics = (timeoutMs = 2000) => {
+                const requests = [...pendingAnalytics];
+                if (!requests.length) return Promise.resolve();
+                return Promise.race([
+                    Promise.allSettled(requests),
+                    new Promise((resolve) => window.setTimeout(resolve, timeoutMs)),
+                ]);
             };
 
             document.addEventListener("click", (event) => {
@@ -210,8 +244,9 @@
                 });
             });
 
-            document.addEventListener("submit", (event) => {
+            document.addEventListener("submit", async (event) => {
                 const form = event.target;
+                if (form.dataset.analyticsReady === "true") return;
                 sendAnalytics({
                     metadata: {
                         label: form.dataset.analyticsLabel || form.getAttribute("aria-label") || form.id || "Form",
@@ -221,6 +256,23 @@
                     },
                     event_type: "form_submit",
                 });
+                if (!form.hasAttribute("data-wait-for-analytics")) return;
+
+                event.preventDefault();
+                if (form.dataset.analyticsWaiting === "true") return;
+                form.dataset.analyticsWaiting = "true";
+                form.setAttribute("aria-busy", "true");
+                const submitButton = event.submitter || form.querySelector('[type="submit"]');
+                if (submitButton) submitButton.disabled = true;
+                const overlay = form.querySelector("[data-saving-overlay]");
+                if (overlay) overlay.hidden = false;
+
+                await Promise.all([
+                    waitForAnalytics(),
+                    new Promise((resolve) => window.setTimeout(resolve, 550)),
+                ]);
+                form.dataset.analyticsReady = "true";
+                HTMLFormElement.prototype.submit.call(form);
             });
 
             document.addEventListener("change", (event) => {

@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.test import TestCase
 from django.urls import reverse
 from tempfile import TemporaryDirectory
@@ -39,6 +40,7 @@ class DashboardTests(TestCase):
     def test_dashboard_recommendation_renders_as_flip_card(self):
         user = User.objects.create_user(username="flip_student", password="password123")
         course = Course.objects.create(code="SYS201", title="Applied Systems")
+        course.students.add(user)
         material = Material.objects.create(course=course, title="Feedback Loop Guide", is_validated=True)
         BaselineAssessment.objects.create(course=course, title="Applied Systems Baseline")
         Recommendation.objects.create(
@@ -160,7 +162,7 @@ class CommonQuestionWarmupTests(TestCase):
         self.assertEqual(questions[1]["step"], "Step 5: Architecture Development")
 
     def test_load_common_questions_uses_fallback_when_default_file_is_empty(self):
-        with TemporaryDirectory() as temp_dir:
+        with TemporaryDirectory(dir=settings.BASE_DIR) as temp_dir:
             question_file = Path(temp_dir) / "common questions.md"
             question_file.write_text("", encoding="utf-8")
             with patch("core.services.temp_functions.commonquestions.DEFAULT_COMMON_QUESTIONS_PATH", question_file):
@@ -182,7 +184,7 @@ class CommonQuestionWarmupTests(TestCase):
             },
         }
 
-        with TemporaryDirectory() as temp_dir:
+        with TemporaryDirectory(dir=settings.BASE_DIR) as temp_dir:
             question_file = Path(temp_dir) / "common.md"
             question_file.write_text("1. First question?\n\n2. Second question?\n", encoding="utf-8")
 
@@ -313,7 +315,7 @@ class CommonQuestionWarmupTests(TestCase):
             "text": "Grounded answer",
             "metadata": {"grounded": True, "sources": [], "external_suggestions": []},
         }
-        with TemporaryDirectory() as temp_dir:
+        with TemporaryDirectory(dir=settings.BASE_DIR) as temp_dir:
             question_file = Path(temp_dir) / "common.md"
             question_file.write_text("1. First question?\n", encoding="utf-8")
 

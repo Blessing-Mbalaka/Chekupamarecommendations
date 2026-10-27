@@ -1,10 +1,11 @@
+from institutions.models import InstitutionOwnedModel
 from django.conf import settings
 from django.db import models
 
 from learning.models import Course, LecturerPrompt
 
-
-class ChatSession(models.Model):
+#Here the chatsession class is used to store the student and the course they are interacting with in the chat.
+class ChatSession(InstitutionOwnedModel):
     student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="chat_sessions")
     course = models.ForeignKey(Course, on_delete=models.SET_NULL, null=True, blank=True, related_name="chat_sessions")
     title = models.CharField(max_length=255, default="Learning Support Chat")
@@ -18,7 +19,7 @@ class ChatSession(models.Model):
         return f"{self.student} - {self.title}"
 
 
-class ChatMessage(models.Model):
+class ChatMessage(InstitutionOwnedModel):
     class Sender(models.TextChoices):
         SYSTEM = "system", "System"
         STUDENT = "student", "Student"

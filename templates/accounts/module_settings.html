@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Module settings · Learning Navigator{% endblock %}
+
+{% block content %}
+<section class="panel">
+    <p class="eyebrow">Settings</p>
+    <h2>{% if is_welcome %}Choose your modules{% else %}Your modules{% endif %}</h2>
+    {% if is_welcome %}<p class="muted">Welcome. Select all the modules you are taking so chats, materials, quizzes, and recommendations stay in the right learning context.</p>{% endif %}
+
+    {% if has_available_modules %}
+        <form method="post" class="form-grid" data-wait-for-analytics>
+            {% csrf_token %}
+            {{ form.non_field_errors }}
+            <div class="form-section">
+                {{ form.modules.errors }}
+                <h3>{{ form.modules.label }}</h3>
+                <p class="muted">{{ form.modules.help_text }}</p>
+                {{ form.modules }}
+            </div>
+            <button type="submit" class="primary-button">Save module settings</button>
+            <div class="module-save-overlay" data-saving-overlay hidden role="status" aria-live="polite">
+                <div class="module-save-card">
+                    <div class="module-save-orbit" aria-hidden="true">
+                        <span class="module-save-book">📚</span>
+                        <i></i><i></i><i></i>
+                    </div>
+                    <strong>Saving your modules…</strong>
+                    <p>Please wait while we organize your learning space.</p>
+                </div>
+            </div>
+        </form>
+    {% else %}
+        <div class="grounding-notice">
+            <strong>Your institution has not added any modules yet.</strong>
+            <p>Please wait for your lecturer or institution administrator to add the module and upload its learning content. You can return to this Settings page later.</p>
+        </div>
+    {% endif %}
+</section>
+{% endblock %}

@@ -1,17 +1,18 @@
+from institutions.models import InstitutionOwnedModel
 from django.conf import settings
 from django.db import models
 
 from learning.models import Material
 
-
-class IngestedResource(models.Model):
+#The IngestedResource model represents a resource that has been ingested into the system, such as a file, website, YouTube video, or academic paper.
+class IngestedResource(InstitutionOwnedModel):
     class ResourceType(models.TextChoices):
         FILE = "file", "File"
         WEBSITE = "website", "Website"
         YOUTUBE = "youtube", "YouTube"
         PAPER = "paper", "Academic Paper"
         OTHER = "other", "Other"
-
+#The status here represents the current processing state of the ingested resource.
     class Status(models.TextChoices):
         PENDING = "pending", "Pending"
         PROCESSED = "processed", "Processed"
@@ -43,8 +44,8 @@ class IngestedResource(models.Model):
     def __str__(self) -> str:
         return f"{self.resource_type} ({self.status})"
 
-
-class ResearchRun(models.Model):
+#The ResearchRun model represents a research session initiated by a user, including the seed URL, video ID, and other parameters.
+class ResearchRun(InstitutionOwnedModel):
     class Status(models.TextChoices):
         PENDING = "pending", "Pending"
         COMPLETE = "complete", "Complete"
@@ -72,7 +73,8 @@ class ResearchRun(models.Model):
         ordering = ["-created_at"]
 
 
-class ResearchTheme(models.Model):
+#The ResearchTheme model represents a thematic cluster identified within a research run, including its label, keywords, description, and visual representation coordinates.
+class ResearchTheme(InstitutionOwnedModel):
     run = models.ForeignKey(ResearchRun, on_delete=models.CASCADE, related_name="themes")
     label = models.CharField(max_length=160)
     keywords = models.JSONField(default=list)
@@ -85,7 +87,8 @@ class ResearchTheme(models.Model):
         ordering = ["pk"]
 
 
-class ResearchVideo(models.Model):
+#The ResearchVideo model represents a video associated with a research run, including its YouTube ID, title, description, channel information, publication date, duration, thumbnail, and transcript.
+class ResearchVideo(InstitutionOwnedModel):
     run = models.ForeignKey(ResearchRun, on_delete=models.CASCADE, related_name="videos")
     material = models.ForeignKey(
         Material, on_delete=models.CASCADE, related_name="research_videos", null=True, blank=True
@@ -107,7 +110,8 @@ class ResearchVideo(models.Model):
         unique_together = ("run", "youtube_id")
 
 
-class ResearchVideoTheme(models.Model):
+#The ResearchVideoTheme model represents the association between a research video and a research theme, including the weight of the theme within the video
+class ResearchVideoTheme(InstitutionOwnedModel):
     video = models.ForeignKey(ResearchVideo, on_delete=models.CASCADE)
     theme = models.ForeignKey(ResearchTheme, on_delete=models.CASCADE)
     weight = models.FloatField(default=0)
@@ -115,8 +119,8 @@ class ResearchVideoTheme(models.Model):
     class Meta:
         unique_together = ("video", "theme")
 
-
-class ContentChunk(models.Model):
+#Apa ndirikuisa material yakaingestwa kuti yite foreign key
+class ContentChunk(InstitutionOwnedModel):
     """A persisted RAG unit. Chat retrieval is intentionally limited to this table."""
 
     material = models.ForeignKey(Material, on_delete=models.CASCADE, related_name="content_chunks")

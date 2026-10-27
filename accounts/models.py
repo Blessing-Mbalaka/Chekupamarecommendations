@@ -1,3 +1,4 @@
+from institutions.models import InstitutionOwnedModel
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.urls import reverse
@@ -10,7 +11,10 @@ class UserRole(models.TextChoices):
     STUDENT = "student", "Student"
 
 
-class User(AbstractUser):
+class User(AbstractUser, InstitutionOwnedModel):
+    from .managers import InstitutionUserManager
+    objects = InstitutionUserManager()
+    department = models.ForeignKey("institutions.Department", on_delete=models.PROTECT, null=True, blank=True)
     role = models.CharField(max_length=20, choices=UserRole.choices, default=UserRole.STUDENT)
     email = models.EmailField(unique=True)
     phone_number = models.CharField(max_length=30, blank=True)
@@ -25,7 +29,7 @@ class User(AbstractUser):
         return reverse("accounts:profile")
 
 
-class StudentProfile(models.Model):
+class StudentProfile(InstitutionOwnedModel):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="student_profile")
     identifiers = models.TextField(
         blank=True,

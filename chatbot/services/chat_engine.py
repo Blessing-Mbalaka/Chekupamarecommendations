@@ -1,3 +1,4 @@
+from institutions.tenancy import scope_key
 import re
 from hashlib import sha256
 from urllib.parse import urlparse
@@ -12,6 +13,16 @@ from learning.services.discovery import REPUTABLE_PROVIDER_NAMES, discover_curat
 from recommendations.services.engine import store_recommendations
 from recommendations.services.llm import backend_status, generate_chat_text, generate_chat_text_stream
 from analytics_app.services.questions import classify_systems_question, record_relevant_question
+
+
+def _empty_module_library_text(student, course) -> str:
+    module_name = getattr(course, "title", "this module")
+    role = getattr(student, "role", "student")
+    if role == "student":
+        return f"Please wait for your lecturer to upload and validate learning content for {module_name}."
+    if role == "ta":
+        return f"There is no validated content for {module_name} yet. Please contact the lecturer or institution administrator."
+    return f"There is no validated content for {module_name} yet. You can upload and curate material from Manage material."
 
 
 def _safe_link(value: str, *, allow_relative: bool = False) -> str:
@@ -54,7 +65,7 @@ def _refresh_academic_discovery(query: str, *, course=None) -> dict:
     """Refresh reputable API suggestions without admitting metadata into RAG."""
 
     cache_key = "chat-academic-discovery:" + sha256(query.strip().lower().encode("utf-8")).hexdigest()
-    payload = cache.get(cache_key)
+    payload = cache.get(scope_key() + cache_key)
     if payload is None:
         try:
             payload = discover_curated_content(
@@ -67,7 +78,7 @@ def _refresh_academic_discovery(query: str, *, course=None) -> dict:
                 "statuses": [{"name": "Academic discovery", "status": "unavailable", "message": str(exc), "count": 0}],
                 "material_ids": [],
             }
-        cache.set(cache_key, payload, timeout=15 * 60)
+        cache.set(scope_key() + cache_key, payload, timeout=15 * 60)
     materials = []
     if course and payload.get("results"):
         try:
@@ -195,18 +206,21 @@ def _recent_conversation(related_message: ChatMessage | None, limit: int = 4) ->
     if not related_message:
         return []
     messages = list(
-        related_message.session.messages.filter(created_at__lt=related_message.created_at)
+        related_message.session.messages.filter(pk__lt=related_message.pk)
         .exclude(sender=ChatMessage.Sender.SYSTEM)
-        .order_by("-created_at")[:limit]
+        .order_by("-pk")[:limit]
     )
     return list(reversed(messages))
 
 
-def _contextualized_retrieval_query(query: str, related_message: ChatMessage | None) -> str:
-    is_follow_up = len(query.split()) <= 10 or bool(
+def _is_follow_up(query: str) -> bool:
+    return len(query.split()) <= 3 or bool(
         re.search(r"\b(it|that|this|they|them|those|these|former|latter|above)\b", query.lower())
     )
-    if not is_follow_up:
+
+
+def _contextualized_retrieval_query(query: str, related_message: ChatMessage | None) -> str:
+    if not _is_follow_up(query):
         return query
     previous_questions = [
         message.content
@@ -270,8 +284,8 @@ def _source_context(matches: list[dict], *, character_limit: int = 5500) -> str:
 def _analytics_filter_payload(reason: str) -> dict:
     return {
         "text": (
-            "That message is unrelated to systems thinking or the indexed course material, so it was "
-            "automatically filtered out of question analytics. Please ask a systems-thinking course question."
+            "That message is unrelated to systems thinking or the indexed module material, so it was "
+            "automatically filtered out of question analytics. Please ask a systems-thinking module question."
         ),
         "metadata": {
             "rag_only": True,
@@ -288,9 +302,8 @@ def _analytics_filter_payload(reason: str) -> dict:
 
 
 def _infer_course(course, ranked_matches: list[dict]):
-    return course or (ranked_matches[0]["material"].course if ranked_matches else None) or Course.objects.filter(
-        title__icontains="system"
-    ).first()
+    """Keep the caller-selected course; never infer a scope from retrieved data."""
+    return course
 
 
 def _build_grounded_response(
@@ -308,10 +321,7 @@ def _build_grounded_response(
 
     if not matches:
         return {
-            "text": (
-                "I can’t answer that from the indexed course library yet. "
-                "Ask a lecturer to upload a source document or a transcript for a researched YouTube video."
-            ),
+            "text": _empty_module_library_text(student, inferred_course),
             "metadata": {
                 "rag_only": True,
                 "grounded": False,
@@ -359,7 +369,7 @@ def _build_grounded_response(
             break
 
     system_instruction = (
-        "You are a retrieval-only course assistant. Answer using only the supplied source excerpts. "
+        "You are a retrieval-only module assistant. Answer using only the supplied source excerpts. "
         "Do not add outside facts. Cite factual claims inline as [Source N]. If the excerpts do not answer "
         "the question, say the indexed library does not contain the answer. Format the response as clean "
         "Markdown with short paragraphs, descriptive headings when useful, and real numbered or bulleted "
@@ -368,7 +378,7 @@ def _build_grounded_response(
     )
     conversation = [
         message
-        for message in _recent_conversation(related_message)
+        for message in (_recent_conversation(related_message) if _is_follow_up(query) else [])
         if not (
             message.sender == ChatMessage.Sender.STUDENT
             and message.content.strip().lower() == query.strip().lower()
@@ -393,13 +403,13 @@ def _build_grounded_response(
         ]
     )
     answer_cache_key = "chat-rag-answer:" + sha256(answer_signature.encode("utf-8")).hexdigest()
-    cached_answer = cache.get(answer_cache_key)
+    cached_answer = cache.get(scope_key() + answer_cache_key)
     if cached_answer:
         generated_text, backend = cached_answer["text"], f"{cached_answer['backend']}-cache"
     else:
         generated_text, backend = generate_chat_text(system_instruction, contents)
         if generated_text:
-            cache.set(answer_cache_key, {"text": generated_text, "backend": backend}, timeout=5 * 60)
+            cache.set(scope_key() + answer_cache_key, {"text": generated_text, "backend": backend}, timeout=5 * 60)
     if not generated_text:
         excerpt = matches[0]["text"][:700].strip()
         generated_text = f"The closest indexed source says: {excerpt} [Source 1]"
@@ -448,6 +458,9 @@ def generate_grounded_response_for_query(
 ):
     """Run the retrieval-only answer flow for a plain-text query."""
 
+    if course is None:
+        return _course_required_payload()
+
     faq_payload = find_common_question(query, course=course) if use_faq_cache else None
     if faq_payload:
         if track_analytics and related_message:
@@ -487,9 +500,22 @@ def generate_grounded_response_for_query(
     )
 
 
+def _course_required_payload():
+    return {
+        "text": "Please select one of your modules before asking a question.",
+        "metadata": {"sources": [], "external_suggestions": [], "course_required": True},
+    }
+
+
+def _needs_course(message: ChatMessage) -> bool:
+    return message.session.course_id is None
+
+
 def generate_bot_response(message: ChatMessage):
     """Answer only from persisted chunks while separately suggesting labelled external material."""
 
+    if _needs_course(message):
+        return _course_required_payload()
     return generate_grounded_response_for_query(
         message.content,
         course=message.session.course,
@@ -504,6 +530,11 @@ def stream_bot_response(message: ChatMessage):
 
     query = message.content
     course = message.session.course
+    if _needs_course(message):
+        payload = _course_required_payload()
+        yield {"type": "token", "text": payload["text"]}
+        yield {"type": "complete", "payload": payload}
+        return
     yield {"type": "status", "text": "Checking common questions..."}
     faq_payload = find_common_question(query, course=course)
     if faq_payload:
@@ -522,7 +553,7 @@ def stream_bot_response(message: ChatMessage):
         yield {"type": "complete", "payload": faq_payload}
         return
 
-    yield {"type": "status", "text": "Searching the indexed course library…"}
+    yield {"type": "status", "text": "Searching the selected module library…"}
     retrieval_query = _contextualized_retrieval_query(query, message)
     ranked_matches = retrieve_chunks(retrieval_query, course=course, limit=30)
     inferred_course = _infer_course(course, ranked_matches)
@@ -545,10 +576,7 @@ def stream_bot_response(message: ChatMessage):
         yield {
             "type": "complete",
             "payload": {
-                "text": (
-                    "I can’t answer that from the indexed course library yet. "
-                    "Ask a lecturer to upload a source document or transcript."
-                ),
+                "text": _empty_module_library_text(message.session.student, inferred_course),
                 "metadata": {
                     "rag_only": True,
                     "grounded": False,
@@ -598,7 +626,7 @@ def stream_bot_response(message: ChatMessage):
             break
 
     system_instruction = (
-        "You are a retrieval-only course assistant. Answer using only the supplied source excerpts. "
+        "You are a retrieval-only module assistant. Answer using only the supplied source excerpts. "
         "Do not add outside facts. Cite factual claims inline as [Source N]. If the excerpts do not answer "
         "the question, say the indexed library does not contain the answer. Format the response as clean "
         "Markdown with short paragraphs, descriptive headings when useful, and real numbered or bulleted "
@@ -607,7 +635,7 @@ def stream_bot_response(message: ChatMessage):
     )
     conversation = [
         prior
-        for prior in _recent_conversation(message)
+        for prior in (_recent_conversation(message) if _is_follow_up(query) else [])
         if not (
             prior.sender == ChatMessage.Sender.STUDENT
             and prior.content.strip().lower() == query.strip().lower()
@@ -628,7 +656,7 @@ def stream_bot_response(message: ChatMessage):
         [query.strip().lower(), conversation_text, *[str(match["chunk"].pk) for match in matches]]
     )
     answer_cache_key = "chat-rag-answer:" + sha256(answer_signature.encode("utf-8")).hexdigest()
-    cached_answer = cache.get(answer_cache_key)
+    cached_answer = cache.get(scope_key() + answer_cache_key)
     generated_text = ""
     backend = "fallback"
     if cached_answer:
@@ -644,7 +672,7 @@ def stream_bot_response(message: ChatMessage):
             yield {"type": "token", "text": token}
         generated_text = "".join(generated_parts).strip()
         if generated_text:
-            cache.set(answer_cache_key, {"text": generated_text, "backend": backend}, timeout=5 * 60)
+            cache.set(scope_key() + answer_cache_key, {"text": generated_text, "backend": backend}, timeout=5 * 60)
 
     if not generated_text:
         excerpt = matches[0]["text"][:700].strip()

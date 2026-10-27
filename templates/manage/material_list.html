@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}Manage materials{% endblock %}
+
+{% block content %}
+<section class="panel">
+    <p class="eyebrow">Course content</p>
+    <h2>Manage materials</h2>
+    <p class="muted">{% if user.is_superuser or user.role == 'admin' %}All courses.{% else %}Only your own courses are shown.{% endif %}</p>
+    <form method="get" class="button-row">
+        <input type="text" name="q" value="{{ filters.q }}" placeholder="Search title or author">
+        <select name="course">
+            <option value="">All courses</option>
+            {% for course in courses %}<option value="{{ course.pk }}" {% if filters.course == course.pk|stringformat:"s" %}selected{% endif %}>{{ course.code }}</option>{% endfor %}
+        </select>
+        <select name="state">
+            <option value="">Any state</option>
+            <option value="approved" {% if filters.state == 'approved' %}selected{% endif %}>Approved</option>
+            <option value="pending" {% if filters.state == 'pending' %}selected{% endif %}>Pending approval</option>
+            <option value="unindexed" {% if filters.state == 'unindexed' %}selected{% endif %}>Not indexed</option>
+        </select>
+        <button type="submit" class="secondary-button">Filter</button>
+        <a class="primary-button" href="{% url 'core:manage_material_new' %}">Upload material</a>
+    </form>
+</section>
+
+<section class="panel">
+    {% for material in page %}
+        <article class="library-material-row">
+            <div>
+                <h4>{{ material.title }}</h4>
+                <p class="muted">
+                    {{ material.course.code }} · {{ material.get_source_type_display }}
+                    · {% if material.is_validated %}Approved{% else %}Pending{% endif %}
+                    · {{ material.chunk_total }} chunk{{ material.chunk_total|pluralize }}
+                </p>
+            </div>
+            <div class="button-row">
+                <a class="ghost-button" href="{% url 'core:manage_material_chunks' material.pk %}">Chunks</a>
+                <a class="ghost-button" href="{% url 'core:manage_material_edit' material.pk %}">Edit</a>
+                <form method="post" action="{% url 'core:manage_material_delete' material.pk %}" onsubmit="return confirm('Delete this material and all its chunks?');">
+                    {% csrf_token %}
+                    <button type="submit" class="ghost-button">Delete</button>
+                </form>
+            </div>
+        </article>
+    {% empty %}
+        <p class="muted">No materials found.</p>
+    {% endfor %}
+    {% if page.has_other_pages %}
+        <div class="button-row">
+            {% if page.has_previous %}<a class="ghost-button" href="?page={{ page.previous_page_number }}&q={{ filters.q|urlencode }}&course={{ filters.course }}&state={{ filters.state }}">Previous</a>{% endif %}
+            <span class="muted">Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+            {% if page.has_next %}<a class="ghost-button" href="?page={{ page.next_page_number }}&q={{ filters.q|urlencode }}&course={{ filters.course }}&state={{ filters.state }}">Next</a>{% endif %}
+        </div>
+    {% endif %}
+</section>
+{% endblock %}

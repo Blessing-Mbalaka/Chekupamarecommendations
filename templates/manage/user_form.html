@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block title %}{% if managed_user %}Edit user{% else %}New user{% endif %}{% endblock %}
+
+{% block content %}
+<section class="panel">
+    <p class="eyebrow">Administration</p>
+    <h2>{% if managed_user %}Edit {{ managed_user.username }}{% else %}New user{% endif %}</h2>
+    <p class="muted">Courses are applied according to the role: students are enrolled, lecturers teach, TAs support. New users receive a secure link to set their own password; passwords are never emailed.</p>
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <div class="button-row">
+            <button type="submit" class="primary-button">Save</button>
+            <a class="ghost-button" href="{% url 'core:manage_users' %}">Cancel</a>
+        </div>
+    </form>
+</section>
+{% endblock %}

@@ -13,7 +13,7 @@
                             <strong>{{ source.display_label|default:source.title }}</strong>
                             <span class="origin-badge origin-badge--{{ source.origin }}">{{ source.origin_label }}</span>
                         </div>
-                        <p>{{ source.provider|default:"UJ course library" }} · {{ source.preview_kind|title }} · {{ source.score }} match</p>
+                        <p>{{ source.provider|default:"UJ module library" }} · {{ source.preview_kind|title }} · {{ source.score }} match</p>
                         {% if source.authors or source.publication %}<p>{{ source.authors }}{% if source.authors and source.publication %} · {% endif %}{{ source.publication }}</p>{% endif %}
                     </div>
                 </div>

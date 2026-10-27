@@ -1,10 +1,11 @@
+from institutions.models import InstitutionOwnedModel
 from django.conf import settings
 from django.db import models
 
 from learning.models import Material
 
 
-class Recommendation(models.Model):
+class Recommendation(InstitutionOwnedModel):
     student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="recommendations")
     material = models.ForeignKey(Material, on_delete=models.CASCADE, related_name="recommendations")
     reason = models.TextField()
@@ -20,7 +21,7 @@ class Recommendation(models.Model):
         return f"{self.student} -> {self.material}"
 
 
-class MaterialEmbeddingCluster(models.Model):
+class MaterialEmbeddingCluster(InstitutionOwnedModel):
     material = models.OneToOneField(Material, on_delete=models.CASCADE, related_name="embedding_cluster")
     cluster_label = models.CharField(max_length=120, blank=True)
     embedding_backend = models.CharField(max_length=120, blank=True)

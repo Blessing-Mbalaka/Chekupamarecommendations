@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Chunks{% endblock %}
+
+{% block content %}
+<section class="panel">
+    <p class="eyebrow">{{ material.course.code }}</p>
+    <h2>Chunks for {{ material.title }}</h2>
+    <p class="muted">{{ page.paginator.count }} chunk{{ page.paginator.count|pluralize }}. Deleting a chunk removes it from chat answers. Re-index to restore it.</p>
+    <div class="button-row">
+        <a class="ghost-button" href="{% url 'core:manage_materials' %}">Back</a>
+        <form method="post" action="{% url 'core:manage_material_reindex' material.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="secondary-button">Re-index</button>
+        </form>
+    </div>
+</section>
+
+<section class="panel">
+    <form method="post" action="{% url 'core:manage_chunks_delete' material.pk %}" onsubmit="return confirm('Delete the selected chunks?');">
+        {% csrf_token %}
+        <div class="button-row"><button type="submit" class="secondary-button">Delete selected</button></div>
+        {% for chunk in page %}
+            <article class="library-material-row">
+                <div>
+                    <label>
+                        <input type="checkbox" name="chunk_ids" value="{{ chunk.pk }}">
+                        #{{ chunk.ordinal }}{% if chunk.page_number %} · p.{{ chunk.page_number }}{% endif %}{% if chunk.section_title %} · {{ chunk.section_title }}{% endif %}
+                        · {{ chunk.token_count }} tokens
+                    </label>
+                    <p>{{ chunk.text|truncatechars:400 }}</p>
+                </div>
+            </article>
+        {% empty %}
+            <p class="muted">This material has no chunks, so it cannot ground chat answers.</p>
+        {% endfor %}
+    </form>
+    {% if page.has_other_pages %}
+        <div class="button-row">
+            {% if page.has_previous %}<a class="ghost-button" href="?page={{ page.previous_page_number }}">Previous</a>{% endif %}
+            <span class="muted">Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+            {% if page.has_next %}<a class="ghost-button" href="?page={{ page.next_page_number }}">Next</a>{% endif %}
+        </div>
+    {% endif %}
+</section>
+{% endblock %}

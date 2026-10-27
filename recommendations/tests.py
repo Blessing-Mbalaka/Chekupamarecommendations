@@ -17,6 +17,7 @@ class RecommendationEngineTests(TestCase):
             challenges="I struggle with calculus limits and derivatives.",
         )
         self.course = Course.objects.create(code="MTH101", title="Calculus")
+        self.course.students.add(self.student)
         topic = Topic.objects.create(course=self.course, title="Limits")
         self.matching = Material.objects.create(
             course=self.course,

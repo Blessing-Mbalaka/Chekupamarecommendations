@@ -148,7 +148,7 @@ def material_approve_selected_view(request):
 @login_required
 def material_serpapi_transcript_view(request, pk):
     material = get_object_or_404(Material.objects.select_related("course"), pk=pk)
-    if request.method != "POST" or not _can_build_quizzes(request.user):
+    if request.method != "POST" or not _can_build_quizzes(request.user) or not _manageable_courses(request.user).filter(pk=material.course_id).exists():
         return HttpResponseForbidden("Only teaching staff can fetch and index transcripts.")
     try:
         chunks = store_material_serpapi_transcript(material)

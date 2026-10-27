@@ -1,3 +1,4 @@
+from institutions.tenancy import institution_job
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
@@ -7,6 +8,7 @@ from analytics_app.models import AnalyticsQuestionnaireResponse
 class Command(BaseCommand):
     help = "Delete consented questionnaire responses after each questionnaire's configured retention period."
 
+    @institution_job
     def handle(self, *args, **options):
         deleted = 0
         for response in AnalyticsQuestionnaireResponse.objects.select_related("questionnaire").iterator():

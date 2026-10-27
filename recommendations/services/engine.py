@@ -52,7 +52,8 @@ def recommend_for_student(
     use_semantic=True,
     generate_missing_embeddings=True,
 ):
-    materials = Material.objects.select_related("course", "topic").filter(is_validated=True)
+    from institutions.tenancy import allowed_course_ids
+    materials = Material.objects.select_related("course", "topic").filter(is_validated=True, course_id__in=allowed_course_ids(student))
     if course is not None:
         materials = materials.filter(course=course)
     material_list = list(materials)

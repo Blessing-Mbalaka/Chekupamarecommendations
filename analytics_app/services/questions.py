@@ -399,19 +399,14 @@ def suggest_question_themes(course: Course, *, count=5, model="lda", created_by=
 
 def backfill_relevant_questions(courses):
     course_ids = list(courses.values_list("pk", flat=True))
-    default_systems_course = courses.filter(title__icontains="system").first()
     messages = ChatMessage.objects.filter(
         sender=ChatMessage.Sender.STUDENT,
-    ).filter(
-        Q(session__course_id__in=course_ids) | Q(session__course__isnull=True)
-    ).filter(question_analysis__isnull=True).select_related("session__course")
+        session__course_id__in=course_ids,
+        question_analysis__isnull=True,
+    ).select_related("session__course")
     created = 0
     for message in messages.iterator():
         course = message.session.course
-        if not course:
-            ranked = retrieve_chunks(message.content, limit=1)
-            candidate = ranked[0]["material"].course if ranked else None
-            course = candidate if candidate and candidate.pk in course_ids else default_systems_course
         classification = classify_systems_question(message.content, course=course, use_llm=False)
         if record_relevant_question(message, classification, course=course):
             created += 1

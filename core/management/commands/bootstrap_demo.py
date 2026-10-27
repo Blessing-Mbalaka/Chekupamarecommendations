@@ -1,3 +1,4 @@
+from institutions.tenancy import institution_job
 from django.core.management.base import BaseCommand
 
 from core.services.demo import bootstrap_demo_data
@@ -6,6 +7,7 @@ from core.services.demo import bootstrap_demo_data
 class Command(BaseCommand):
     help = "Create demo users, systems thinking seed content, and warm the cache."
 
+    @institution_job
     def handle(self, *args, **options):
         payload = bootstrap_demo_data()
         self.stdout.write(

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from institutions.tenancy import scope_key
 
 import hashlib
 import math
@@ -202,6 +203,27 @@ def split_text(value: str, *, words_per_chunk: int = 260, overlap: int = 45) -> 
     ]
 
 
+def _pptx_text(file) -> str:
+    """One form-feed separated block per slide, so chunks carry slide numbers."""
+    from pptx import Presentation
+
+    slides = []
+    for slide in Presentation(file).slides:
+        parts = []
+        for shape in slide.shapes:
+            if shape.has_text_frame:
+                parts.extend(p.text for p in shape.text_frame.paragraphs if p.text.strip())
+            elif getattr(shape, "has_table", False) and shape.has_table:
+                for row in shape.table.rows:
+                    parts.append(" | ".join(cell.text for cell in row.cells))
+        if slide.has_notes_slide:
+            notes = slide.notes_slide.notes_text_frame.text.strip()
+            if notes:
+                parts.append(f"Speaker notes: {notes}")
+        slides.append("\n".join(parts))
+    return "\n\f\n".join(slides)
+
+
 def material_source_text(material: Material) -> str:
     if material.file:
         filename = material.file.name.lower()
@@ -217,6 +239,8 @@ def material_source_text(material: Material) -> str:
                 from docx import Document
 
                 return "\n\n".join(paragraph.text for paragraph in Document(material.file).paragraphs)
+            if filename.endswith(".pptx"):
+                return _pptx_text(material.file)
         except (OSError, ValueError, ImportError):
             pass
         finally:
@@ -266,7 +290,7 @@ def index_material(material: Material, *, text: str = "", research_video=None) -
 
 
 def _corpus_cache_key(course_id) -> str:
-    return f"rag-corpus:{course_id or 'all'}"
+    return f"rag-corpus:{scope_key()}:{course_id or 'all'}"
 
 
 def invalidate_retrieval_cache(course_id=None) -> None:
@@ -366,7 +390,9 @@ def _semantic_scores(query_embedding: list[float], embeddings: list[list[float]]
     return scores
 
 
-def retrieve_chunks(query: str, *, course=None, limit: int = 5) -> list[dict]:
+def retrieve_chunks(query: str, *, course, limit: int = 5) -> list[dict]:
+    if course is None:
+        raise ValueError("A course is required for embedding retrieval.")
     corpus = _load_scoring_corpus(course)
     if not corpus["ids"]:
         return []

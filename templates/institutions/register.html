@@ -1,0 +1,3 @@
+{% extends 'base.html' %}
+{% block title %}{{ heading }} · Learning Navigator{% endblock %}
+{% block content %}<section class="hero-card"><h1>{{ heading }}</h1><p>Learning material stays within your institution and assigned modules. Personal learning records belong to each student.</p><form method="post">{% csrf_token %}{{ form.as_p }}<button class="primary-button" type="submit">Create account</button></form><p><a href="{% url 'login' %}">Sign in</a> · <a href="{% url 'institutions:join' %}">Join an existing institution</a> · <a href="{% url 'institutions:register' %}">Register an institution</a></p></section>{% endblock %}

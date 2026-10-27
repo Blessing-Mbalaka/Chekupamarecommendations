@@ -1,3 +1,4 @@
+from institutions.tenancy import institution_job
 from django.core.management.base import BaseCommand, CommandError
 
 from ingestion.services.providers import (
@@ -15,6 +16,7 @@ class Command(BaseCommand):
         parser.add_argument("--query", default="Systems thinking")
         parser.add_argument("--video-id", default="")
 
+    @institution_job
     def handle(self, *args, **options):
         if not SERPAPI_API_KEY:
             raise CommandError("SERPAPI_API_KEY (or SERPAPI_KEY) is not configured.")

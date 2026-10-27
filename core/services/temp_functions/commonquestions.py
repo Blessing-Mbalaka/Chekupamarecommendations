@@ -1,3 +1,4 @@
+from institutions.tenancy import current_institution_id
 import re
 from copy import deepcopy
 from hashlib import sha256
@@ -227,10 +228,15 @@ def generate_grounded_response_for_query(*args, **kwargs):
     return generate_response(*args, **kwargs)
 
 
+def _index_key(course=None):
+    institution_id = current_institution_id() or getattr(course, 'institution_id', 1)
+    return COMMON_QUESTIONS_INDEX_CACHE_KEY if institution_id == 1 else f'{COMMON_QUESTIONS_INDEX_CACHE_KEY}:{institution_id}'
+
+
 def find_common_question(query: str, *, course=None, threshold: float | None = None) -> dict | None:
     """Return the closest course-scoped warmed FAQ answer above the confidence threshold."""
 
-    cache_keys = cache.get(COMMON_QUESTIONS_INDEX_CACHE_KEY) or []
+    cache_keys = cache.get(_index_key(course)) or []
     entries = cache.get_many(cache_keys).values()
     course_id = getattr(course, "pk", None)
     candidates = [
@@ -289,7 +295,7 @@ def warm_common_question_cache(*, path: str | Path | None = None, course=None, l
     course_id = getattr(course, "pk", None)
     for entry in questions:
         question = entry["question"]
-        signature = f"{course_id or 'global'}:{question.strip().lower()}"
+        signature = f"{current_institution_id() or getattr(course, 'institution_id', 1)}:{course_id or 'global'}:{question.strip().lower()}"
         cache_key = COMMON_QUESTIONS_CACHE_PREFIX + sha256(signature.encode("utf-8")).hexdigest()
         payload = generate_grounded_response_for_query(question, course=course, use_faq_cache=False)
         embedding, embedding_backend = embed_text(question)
@@ -316,13 +322,13 @@ def warm_common_question_cache(*, path: str | Path | None = None, course=None, l
             }
         )
 
-    previous_keys = cache.get(COMMON_QUESTIONS_INDEX_CACHE_KEY) or []
+    previous_keys = cache.get(_index_key(course)) or []
     retained_keys = []
     for previous_key, previous_entry in cache.get_many(previous_keys).items():
         if previous_entry.get("course_id") != course_id:
             retained_keys.append(previous_key)
     cache.set(
-        COMMON_QUESTIONS_INDEX_CACHE_KEY,
+        _index_key(course),
         [*retained_keys, *cache_keys],
         timeout=COMMON_QUESTIONS_CACHE_TIMEOUT,
     )

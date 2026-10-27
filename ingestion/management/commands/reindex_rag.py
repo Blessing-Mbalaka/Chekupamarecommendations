@@ -1,3 +1,4 @@
+from institutions.tenancy import institution_job
 from django.core.management.base import BaseCommand, CommandError
 from django.db.models import Q
 
@@ -13,6 +14,7 @@ class Command(BaseCommand):
         parser.add_argument("--material-id", type=int, help="Restrict to one material.")
         parser.add_argument("--dry-run", action="store_true", help="List eligible materials without changing chunks.")
 
+    @institution_job
     def handle(self, *args, **options):
         full_text_evidence = (
             ~Q(file="")

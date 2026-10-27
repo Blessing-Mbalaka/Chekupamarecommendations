@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block title %}{% if material %}Edit material{% else %}Upload material{% endif %}{% endblock %}
+
+{% block content %}
+<section class="panel">
+    <p class="eyebrow">Course content</p>
+    <h2>{% if material %}Edit {{ material.title }}{% else %}Upload material{% endif %}</h2>
+    <p class="muted">You can only choose courses you are responsible for. Uploading a new file re-indexes it.</p>
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <div class="button-row">
+            <button type="submit" class="primary-button">Save</button>
+            <a class="ghost-button" href="{% url 'core:manage_materials' %}">Cancel</a>
+        </div>
+    </form>
+</section>
+{% endblock %}

@@ -8,10 +8,28 @@
         <div>
             <p class="eyebrow">Grounded learning support</p>
             <h2>UJ Study Assistant</h2>
-            <p>Answers come only from your indexed course library.</p>
+            <p>Answers come only from the selected module's indexed library.</p>
         </div>
-        <span class="rag-status"><i></i> RAG only</span>
+        <button type="button" class="course-btn" id="course-btn" aria-haspopup="dialog">
+            <span>{% if session and session.course %}{{ session.course.title }}{% elif courses %}Choose a module{% else %}No modules{% endif %}</span>
+            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+        </button>
     </header>
+
+    <dialog class="course-modal" id="course-modal">
+        <h3>Select module</h3>
+        <p>Chats are kept separately for each module, and answers use only that module's material.</p>
+        <div class="course-modal__list">
+            {% for c in courses %}
+                <a class="course-modal__item{% if session and session.course_id == c.pk %} is-active{% endif %}" href="?course={{ c.pk }}">{{ c.title }}</a>
+            {% empty %}
+                <p>You have not selected any modules yet. Open Module settings to choose them.</p>
+            {% endfor %}
+        </div>
+        <button type="button" class="course-modal__close" id="course-modal-close">Close</button>
+    </dialog>
+
+    {% if module_guidance %}<div class="grounding-notice"><strong>{{ module_guidance }}</strong></div>{% endif %}
 
     <div class="chat-conversation" id="chat-conversation" aria-live="polite">
         {% for message in chat_messages %}
@@ -45,7 +63,7 @@
                                                 <strong>{{ source.display_label|default:source.title }}</strong>
                                                 <span class="origin-badge origin-badge--{{ source.origin }}">{{ source.origin_label }}</span>
                                             </div>
-                                            <p>{{ source.provider|default:"UJ course library" }} · {{ source.preview_kind|title }} · {{ source.score }} match</p>
+                                            <p>{{ source.provider|default:"UJ module library" }} · {{ source.preview_kind|title }} · {{ source.score }} match</p>
                                             {% if source.authors or source.publication %}<p>{{ source.authors }}{% if source.authors and source.publication %} · {% endif %}{{ source.publication }}</p>{% endif %}
                                         </div>
                                     </div>
@@ -155,7 +173,7 @@
             <div class="chat-empty">
                 <span class="chat-empty__mark">UJ</span>
                 <h3>What would you like to understand?</h3>
-                <p>Ask about your course materials, request a simpler explanation, or ask what to study next.</p>
+                <p>Ask about your module materials, request a simpler explanation, or ask what to study next.</p>
                 <div class="prompt-suggestions">
                     <button type="button" data-prompt="What should I revise first?">What should I revise first?</button>
                     <button type="button" data-prompt="Explain the key ideas in simple terms.">Explain this simply</button>
@@ -165,8 +183,10 @@
         {% endfor %}
     </div>
 
+    {% if session %}
     <form method="post" class="chat-composer" id="chat-form" data-stream-url="{% url 'chatbot:chat_stream' %}">
         {% csrf_token %}
+        {% if session.course_id %}<input type="hidden" name="course" value="{{ session.course_id }}">{% endif %}
         <label class="sr-only" for="{{ form.message.id_for_label }}">Message</label>
         {{ form.message }}
         <button type="submit" class="chat-send" aria-label="Send message">
@@ -174,10 +194,19 @@
         </button>
         <p>UJ Study Assistant can make mistakes. Verify important information against the cited material.</p>
     </form>
+    {% endif %}
 </section>
 {% endblock %}
 
 {% block extra_scripts %}
+<script>
+    (() => {
+        const modal = document.getElementById("course-modal");
+        document.getElementById("course-btn")?.addEventListener("click", () => modal.showModal());
+        document.getElementById("course-modal-close")?.addEventListener("click", () => modal.close());
+        modal?.addEventListener("click", (event) => { if (event.target === modal) modal.close(); });
+    })();
+</script>
 <script>
     window.MathJax = {
         tex: {
@@ -388,7 +417,7 @@
             const studentText = input.value.trim();
             const formData = new FormData(form);
             appendLiveTurn("student", studentText);
-            const botCopy = appendLiveTurn("bot", "Searching the indexed course library…");
+            const botCopy = appendLiveTurn("bot", "Searching the selected module library…");
             botCopy.classList.add("conversation-copy--streaming");
             input.value = "";
             input.disabled = true;
