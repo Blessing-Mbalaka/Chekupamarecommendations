@@ -13,6 +13,8 @@ test("operations health is protected and login validation is generic", async ({ 
   expect(health.status()).toBe(302);
   expect(health.headers().location).toContain("/login/?next=/ops/health/");
 
+  await page.goto("/login/");
+  await expect(page.getByText("Your institution or faculty administrator provides this code.")).toBeVisible();
   await signIn(page, "demo_student", "Password123!", "wrong-institution");
   await expect(page).toHaveURL(/\/login\/$/);
   await expect(page.getByText("Check your institution code and sign-in details.")).toBeVisible();

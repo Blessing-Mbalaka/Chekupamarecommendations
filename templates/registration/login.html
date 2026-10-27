@@ -30,7 +30,7 @@
         <div class="login-form-panel__heading">
             <p class="eyebrow">Secure access</p>
             <h3>Welcome back</h3>
-            <p>Use your university credentials or one of the demo accounts.</p>
+            <p>Use your institution or faculty credentials. Your administrator provides the access code and creates or invites your account.</p>
         </div>
         {% csrf_token %}
         {% if form.non_field_errors %}<div class="login-errors">{{ form.non_field_errors }}</div>{% endif %}
@@ -38,12 +38,13 @@
             <div class="login-field">
                 <label for="{{ field.id_for_label }}">{{ field.label }}</label>
                 {{ field }}
+                {% if field.help_text %}<small class="muted">{{ field.help_text }}</small>{% endif %}
                 {% if field.errors %}<div class="login-errors">{{ field.errors }}</div>{% endif %}
             </div>
         {% endfor %}
         {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
         <button type="submit" class="primary-button login-submit">Sign in</button>
-        <p><a href="{% url 'institutions:join' %}">Create a student account</a> · <a href="{% url 'institutions:register' %}">Register an institution</a></p>
+        <p><a href="{% url 'institutions:join' %}">Create a student account with an administrator invitation</a> · <a href="{% url 'institutions:register' %}">Register an institution or faculty</a></p>
         <p class="login-assurance">Your conversation history and learning progress stay attached to your account.</p>
         <aside class="login-survey-notice">
             <span aria-hidden="true">

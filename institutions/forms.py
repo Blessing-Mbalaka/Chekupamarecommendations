@@ -6,7 +6,11 @@ from .models import Institution, Department
 
 class InstitutionRegistrationForm(UserCreationForm):
     institution_name = forms.CharField(max_length=200)
-    institution_code = forms.SlugField(max_length=60)
+    institution_code = forms.SlugField(
+        max_length=60,
+        label="Institution / faculty code",
+        help_text="Create a short, unique login code to give to your lecturers, teaching assistants, and students.",
+    )
     email = forms.EmailField()
     class Meta:
         model = User

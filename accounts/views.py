@@ -18,7 +18,11 @@ class ActivationAwareAuthenticationForm(AuthenticationForm):
         initial="jbs",
         label="Institution / faculty",
         max_length=60,
-        help_text="Johannesburg Business School accounts use jbs.",
+        help_text=(
+            "Your institution or faculty administrator provides this code. "
+            "Johannesburg Business School accounts use jbs."
+        ),
+        widget=forms.TextInput(attrs={"placeholder": "Ask your administrator for this code"}),
     )
     error_messages = {
         **AuthenticationForm.error_messages,
