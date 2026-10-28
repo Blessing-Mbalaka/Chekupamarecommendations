@@ -25,6 +25,17 @@ test("operations health is protected and login validation is generic", async ({ 
   await expect(page.getByText("Check your institution code and sign-in details.")).toBeVisible();
 });
 
+test("forgot password is available from login and uses a privacy-safe confirmation", async ({ page }) => {
+  await page.goto("/login/");
+  await page.getByRole("link", { name: "Forgot your password?" }).click();
+  await expect(page.getByRole("heading", { name: "Forgot your password?" })).toBeVisible();
+  await page.getByLabel("Account email").fill("demo_student@example.com");
+  await page.getByRole("button", { name: "Email reset link" }).click();
+  await expect(page).toHaveURL(/\/accounts\/password-reset\/done\/$/);
+  await expect(page.getByRole("heading", { name: "Check your email" })).toBeVisible();
+  await expect(page.getByText(/does not reveal whether an address is registered/)).toBeVisible();
+});
+
 test("student selects multiple modules and opens a module-scoped chat", async ({ page }) => {
   await signIn(page, "demo_student");
   await expect(page).toHaveURL(/\/dashboard\/$/);
@@ -104,8 +115,11 @@ test("institution admin has overview and user-management access", async ({ page 
   await expect(page).toHaveURL(/\/manage\/users\/$/);
   await expect(page.getByText("@demo_student", { exact: true })).toBeVisible();
   await expect(page.getByText("@demo_lecturer", { exact: true })).toBeVisible();
+  await expect(page.locator(".management-table th").first()).toHaveCSS("border-left-style", "solid");
   await page.getByRole("navigation").getByRole("link", { name: "Manage material" }).click();
   await expect(page.locator("th", { hasText: "Uploaded by" })).toBeVisible();
+  const actionOverflow = await page.locator(".management-table__actions").first().evaluate((element) => ({ client: element.clientWidth, scroll: element.scrollWidth }));
+  expect(actionOverflow.scroll).toBeLessThanOrEqual(actionOverflow.client + 1);
   const pageOverflow = await page.evaluate(() => ({ client: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth }));
   expect(pageOverflow.scroll).toBeLessThanOrEqual(pageOverflow.client + 1);
 });

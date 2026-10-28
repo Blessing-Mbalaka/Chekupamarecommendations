@@ -1,8 +1,10 @@
 from django.contrib.auth import get_user_model
+from django.core import mail
 from django.test import TestCase
 from django.urls import reverse
 
 from institutions.models import Institution
+from institutions.tenancy import institution_context
 from learning.models import Course
 
 from .models import UserRole
@@ -36,6 +38,41 @@ class EffectiveRoleDisplayTests(TestCase):
     def test_student_role_is_preserved_for_regular_user(self):
         user = get_user_model()(username="regular-student", role=UserRole.STUDENT)
         self.assertEqual(user.effective_role_display, "Student")
+
+
+class PasswordResetWorkflowTests(TestCase):
+    def setUp(self):
+        self.other = Institution.objects.create(name="Password Reset Faculty", slug="password-reset-faculty")
+        with institution_context(self.other):
+            self.user = get_user_model().objects.create_user(
+                "reset-user", "reset-user@example.com", "Original-Pass-723!", role=UserRole.LECTURER
+            )
+
+    def test_login_links_to_password_reset_page(self):
+        response = self.client.get(reverse("login"))
+        self.assertContains(response, reverse("password_reset"))
+        self.assertContains(response, "Forgot your password?")
+
+    def test_reset_email_works_across_institutions_and_contains_html(self):
+        response = self.client.post(reverse("password_reset"), {"email": self.user.email})
+        self.assertRedirects(response, reverse("password_reset_done"))
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, [self.user.email])
+        self.assertIn("/accounts/reset/", mail.outbox[0].body)
+        self.assertTrue(mail.outbox[0].alternatives)
+        self.assertIn("Choose a new password", mail.outbox[0].alternatives[0].content)
+
+    def test_unknown_email_gets_same_confirmation_without_email(self):
+        response = self.client.post(reverse("password_reset"), {"email": "unknown@example.com"})
+        self.assertRedirects(response, reverse("password_reset_done"))
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_inactive_account_does_not_receive_reset(self):
+        self.user.is_active = False
+        self.user.save(update_fields=["is_active"])
+        response = self.client.post(reverse("password_reset"), {"email": self.user.email})
+        self.assertRedirects(response, reverse("password_reset_done"))
+        self.assertEqual(len(mail.outbox), 0)
 
 
 class ModuleSettingsTests(TestCase):

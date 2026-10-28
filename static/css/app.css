@@ -465,7 +465,10 @@ a.list-link:hover {
 .button-row {
     grid-auto-flow: column;
     justify-content: start;
+    max-width: 100%;
+    align-items: center;
 }
+.button-row > * { min-width: 0; max-width: 100%; }
 
 .primary-button,
 .secondary-button,
@@ -2167,14 +2170,15 @@ input:focus, textarea:focus, select:focus, button:focus-visible, a:focus-visible
 .content table tbody tr { transition: background-color .15s ease; }
 .content table tbody tr:hover { background: rgba(255, 248, 241, .72); }
 .management-table { width: 100%; min-width: 900px; border-collapse: collapse; }
-.management-table th, .management-table td { padding: 14px 16px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+.management-table th, .management-table td { padding: 14px 16px; border: 1px solid var(--line); text-align: left; vertical-align: middle; }
 .management-table th { color: var(--muted); background: #fff8f1; font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; white-space: nowrap; }
-.management-table tbody tr:last-child td { border-bottom: 0; }
+.management-table tbody tr:last-child td { border-bottom: 1px solid var(--line); }
 .management-table td:first-child strong, .management-table td:first-child span, .table-module-list { display: block; }
 .management-table td:first-child span, .table-module-list { margin-top: 3px; color: var(--muted); font-size: .76rem; }
 .table-module-list strong { display: inline; color: var(--ink); }
-.management-table__actions { flex-wrap: wrap; min-width: 240px; }
+.management-table__actions { display: flex; flex-wrap: wrap; min-width: 0; max-width: 100%; gap: 8px; }
 .management-table__actions .ghost-button { padding: 8px 11px; }
+.management-table__actions form, .management-table__actions a, .management-table__actions button { max-width: 100%; }
 .management-table--materials { min-width: 1080px; table-layout: fixed; }
 .management-table--materials th:nth-child(1) { width: 27%; }
 .management-table--materials th:nth-child(2) { width: 9%; }
@@ -2197,6 +2201,10 @@ input:focus, textarea:focus, select:focus, button:focus-visible, a:focus-visible
 .required-marker { margin-left: 5px; padding: 2px 6px; border-radius: 999px; color: #8e300a; background: #fff0e4; font-size: .6rem; font-weight: 850; text-transform: uppercase; }
 .form-error-summary { margin: 16px 0; padding: 14px 16px; border: 1px solid #df8c77; border-radius: 14px; color: #84270f; background: #fff1ed; }
 .form-error-summary p { margin: 4px 0 0; }
+.password-reset-shell { grid-template-columns: minmax(0, 1fr) minmax(320px, .8fr); align-items: center; }
+.password-reset-shell h1 { margin: 5px 0 12px; }
+.login-password-help { padding: 11px 13px; border: 1px solid var(--line); border-radius: 12px; background: #fff8f1; color: var(--muted); font-size: .8rem; }
+.login-password-help a { color: #91330f; font-weight: 850; }
 .role-tour[hidden] { display: none; }
 .role-tour { position: fixed; inset: 0; z-index: 180; pointer-events: none; }
 .role-tour__backdrop { position: absolute; inset: 0; background: rgba(28, 20, 16, .3); backdrop-filter: blur(1px); }
@@ -2246,10 +2254,11 @@ input:focus, textarea:focus, select:focus, button:focus-visible, a:focus-visible
     .management-table thead { display: none; }
     .management-table, .management-table tbody, .management-table tr, .management-table td { display: block; width: 100%; }
     .management-table tr { padding: 10px; border-bottom: 1px solid var(--line); }
-    .management-table td { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 10px; padding: 8px; border: 0; }
+    .management-table td { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 10px; padding: 10px 8px; border: 0; border-top: 1px solid var(--line); }
     .management-table td::before { content: attr(data-label); color: var(--muted); font-size: .68rem; font-weight: 800; text-transform: uppercase; }
     .management-table__actions { min-width: 0; flex-wrap: wrap; }
     .module-allocation-fieldset ul { grid-template-columns: 1fr; }
+    .password-reset-shell { grid-template-columns: 1fr; }
 }
 
 .body--survey-open { overflow: hidden; }

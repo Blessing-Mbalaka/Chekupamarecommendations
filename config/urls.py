@@ -18,9 +18,10 @@ from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.conf import settings
 from django.conf.urls.static import static
-from django.urls import include, path, re_path
+from django.urls import include, path, re_path, reverse_lazy
 from institutions.media import protected_media
 
+from accounts.forms import InstitutionPasswordResetForm
 from accounts.views import InstitutionLoginView, superuser_login_view
 
 handler400 = 'core.error_views.bad_request'
@@ -43,6 +44,23 @@ urlpatterns = [
     ),
     path('curation/login/', superuser_login_view, name='superuser_login'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
+    path(
+        'accounts/password-reset/',
+        auth_views.PasswordResetView.as_view(
+            form_class=InstitutionPasswordResetForm,
+            template_name='registration/password_reset_form.html',
+            email_template_name='registration/password_reset_email.txt',
+            html_email_template_name='registration/password_reset_email.html',
+            subject_template_name='registration/password_reset_subject.txt',
+            success_url=reverse_lazy('password_reset_done'),
+        ),
+        name='password_reset',
+    ),
+    path(
+        'accounts/password-reset/done/',
+        auth_views.PasswordResetDoneView.as_view(template_name='registration/password_reset_done.html'),
+        name='password_reset_done',
+    ),
     path(
         'accounts/reset/<uidb64>/<token>/',
         auth_views.PasswordResetConfirmView.as_view(),

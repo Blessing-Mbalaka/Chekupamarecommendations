@@ -1,8 +1,22 @@
 from django import forms
+from django.contrib.auth.forms import PasswordResetForm
+from django.contrib.auth import get_user_model
 
 from learning.models import Course
 
 from .models import StudentProfile, User
+
+
+class InstitutionPasswordResetForm(PasswordResetForm):
+    """Find the globally unique email without relying on the active tenant context."""
+
+    def get_users(self, email):
+        user_model = get_user_model()
+        return (
+            user
+            for user in user_model._base_manager.filter(email__iexact=email, is_active=True)
+            if user.has_usable_password()
+        )
 
 
 class UserProfileForm(forms.ModelForm):
