@@ -1,5 +1,7 @@
 from django import forms
 from django.contrib.auth import get_user_model
+from django.contrib.auth import password_validation
+from django.core.exceptions import ValidationError
 
 from accounts.models import UserRole
 from learning.forms_curation import MaterialUploadForm
@@ -15,6 +17,19 @@ ROLE_COURSE_RELATION = {
 
 
 class ManagedUserForm(forms.ModelForm):
+    temporary_password = forms.CharField(
+        required=False,
+        strip=False,
+        label="Temporary password (demo only)",
+        help_text="Optional. If supplied, this account can sign in immediately without an emailed setup link.",
+        widget=forms.PasswordInput(attrs={"autocomplete": "new-password", "placeholder": "Create a temporary password"}),
+    )
+    confirm_temporary_password = forms.CharField(
+        required=False,
+        strip=False,
+        label="Confirm temporary password",
+        widget=forms.PasswordInput(attrs={"autocomplete": "new-password", "placeholder": "Repeat the temporary password"}),
+    )
     courses = forms.ModelMultipleChoiceField(
         queryset=Course.objects.all().order_by("code"),
         required=False,
@@ -46,12 +61,29 @@ class ManagedUserForm(forms.ModelForm):
             raise forms.ValidationError('This email is already in use.')
         return value
 
+    def clean(self):
+        cleaned = super().clean()
+        password = cleaned.get("temporary_password")
+        confirmation = cleaned.get("confirm_temporary_password")
+        if password or confirmation:
+            if password != confirmation:
+                self.add_error("confirm_temporary_password", "The temporary passwords do not match.")
+            elif password:
+                try:
+                    password_validation.validate_password(password, self.instance)
+                except ValidationError as error:
+                    self.add_error("temporary_password", error)
+        return cleaned
+
     def save(self, commit=True):
         is_new = not self.instance.pk
         user = super().save(commit=False)
-        if is_new:
-            # Admins never choose or receive user credentials. The user sets a
-            # password through a short-lived, signed invitation link.
+        temporary_password = self.cleaned_data.get("temporary_password")
+        if temporary_password:
+            user.set_password(temporary_password)
+        elif is_new:
+            # The secure default is a short-lived setup link; the optional
+            # temporary password exists only for explicit demo/offline use.
             user.set_unusable_password()
         user.save()
         selected = self.cleaned_data.get("courses") or []

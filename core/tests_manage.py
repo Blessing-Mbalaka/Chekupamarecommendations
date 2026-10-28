@@ -82,6 +82,42 @@ class ManagementTests(TestCase):
         self.assertIn("/accounts/reset/", mail.outbox[0].body)
         self.assertNotIn("EMAIL_HOST_PASSWORD", mail.outbox[0].body)
 
+    def test_admin_can_create_demo_user_with_temporary_password_without_email(self):
+        self.client.force_login(self.admin)
+        response = self.client.post(
+            reverse("core:manage_user_new"),
+            {
+                "username": "demo-with-password",
+                "email": "demo-with-password@example.com",
+                "role": UserRole.STUDENT,
+                "temporary_password": "Demo-Access-Password-472!",
+                "confirm_temporary_password": "Demo-Access-Password-472!",
+                "courses": [self.sys.pk],
+                "is_active": "on",
+            },
+        )
+        self.assertRedirects(response, reverse("core:manage_users"))
+        created = User.objects.get(username="demo-with-password")
+        self.assertTrue(created.check_password("Demo-Access-Password-472!"))
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_temporary_password_confirmation_must_match(self):
+        self.client.force_login(self.admin)
+        response = self.client.post(
+            reverse("core:manage_user_new"),
+            {
+                "username": "mismatched-password",
+                "email": "mismatched-password@example.com",
+                "role": UserRole.STUDENT,
+                "temporary_password": "Demo-Access-Password-472!",
+                "confirm_temporary_password": "Different-Password-629!",
+                "is_active": "on",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "temporary passwords do not match")
+        self.assertFalse(User.objects.filter(username="mismatched-password").exists())
+
     def test_changing_role_moves_course_relationship(self):
         self.sys.students.add(self.student)
         self.client.force_login(self.admin)

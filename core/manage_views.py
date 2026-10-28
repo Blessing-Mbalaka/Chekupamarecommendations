@@ -101,7 +101,12 @@ def user_edit_view(request, pk=None):
         is_new = instance is None
         user = form.save()
         messages.success(request, f"Saved {user.username} as {user.get_role_display()}.")
-        if is_new:
+        if form.cleaned_data.get("temporary_password"):
+            messages.warning(
+                request,
+                "Temporary demo password saved. Share it manually and do not reuse it for a production account.",
+            )
+        elif is_new:
             try:
                 send_account_setup_email(user, request)
             except Exception:

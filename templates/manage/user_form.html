@@ -6,7 +6,8 @@
 <section class="panel">
     <p class="eyebrow">Administration</p>
     <h2>{% if managed_user %}Edit {{ managed_user.username }}{% else %}New user{% endif %}</h2>
-    <p class="muted">Courses are applied according to the role: students are enrolled, lecturers teach, TAs support. New users receive a secure link to set their own password; passwords are never emailed.</p>
+    <p class="muted">Courses are applied according to the role: students are enrolled, lecturers teach, TAs support. Leave the temporary-password fields blank for the normal secure email invitation workflow.</p>
+    <div class="management-password-warning"><strong>Demo access</strong><span>You may set a temporary password and share it manually when SMTP is unavailable. Do not email or reuse real production passwords.</span></div>
     <form method="post">
         {% csrf_token %}
         {{ form.as_p }}

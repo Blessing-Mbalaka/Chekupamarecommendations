@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}UJ Learning Navigator{% endblock %}</title>
     <meta name="theme-color" content="#ef5b21">
-    <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20261028-chat-materials">
+    <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20261028-demo-password">
 </head>
 <body data-track-path="{{ request.path }}">
     <div class="shell {% if not user.is_authenticated or '/login/' in request.path %}shell--public{% endif %}">
