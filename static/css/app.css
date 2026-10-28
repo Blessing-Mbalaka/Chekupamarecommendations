@@ -1289,7 +1289,7 @@ input:focus, textarea:focus, select:focus, button:focus-visible, a:focus-visible
 }
 .media-frame { position: relative; width: 100%; background: #161616; }
 .media-frame--video { aspect-ratio: 16 / 9; }
-.media-frame--pdf { height: min(54vh, 520px); background: #ececef; }
+.media-frame--pdf { height: clamp(520px, 72vh, 860px); background: #ececef; }
 .media-frame iframe { display: block; width: 100%; height: 100%; border: 0; }
 .link-preview { display: flex; gap: 12px; align-items: center; padding: 18px; border-block: 1px solid #ececef; background: #fafafa; }
 .link-preview p { margin: 0; color: var(--muted); font-size: .86rem; }
@@ -2329,4 +2329,66 @@ input:focus, textarea:focus, select:focus, button:focus-visible, a:focus-visible
     .analytics-header .analytics-filters, .analytics-kpis { grid-template-columns: 1fr; }
     .analytics-header .analytics-filters .primary-button { grid-column: auto; }
     .plotly-chart { min-height: 280px; }
+}
+
+/* Separate API recommendations from the grounded lecturer-material conversation. */
+.chat-app { grid-template-rows: auto minmax(0, 1fr); }
+.chat-workspace { display: grid; min-width: 0; min-height: 0; overflow: hidden; }
+.chat-workspace--with-material { grid-template-columns: minmax(0, 1fr) minmax(230px, 280px); }
+.chat-thread { display: flex; min-width: 0; min-height: 0; flex-direction: column; overflow: hidden; }
+.chat-thread .chat-conversation { flex: 1 1 auto; min-height: 0; }
+.chat-thread .chat-composer { flex: 0 0 auto; }
+.chat-thread__notice { flex: 0 0 auto; margin: 0; border-bottom: 1px solid #f1c9b7; }
+.additional-material-panel {
+    min-width: 0;
+    min-height: 0;
+    overflow-y: auto;
+    border-left: 1px solid #bed8f5;
+    background: linear-gradient(180deg, #f4f9ff 0%, #eaf4ff 100%);
+}
+.additional-material-panel[hidden] { display: none; }
+.additional-material-panel > details { min-height: 100%; padding: 14px 12px; }
+.additional-material-panel summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    cursor: pointer;
+    list-style: none;
+}
+.additional-material-panel summary::-webkit-details-marker { display: none; }
+.additional-material-panel summary > span:first-child { display: grid; gap: 2px; }
+.additional-material-panel summary small { color: #52749a; font-size: .6rem; font-weight: 900; letter-spacing: .07em; text-transform: uppercase; }
+.additional-material-panel summary strong { color: #123f70; font-size: .88rem; }
+.additional-material-count { display: grid; place-items: center; min-width: 25px; height: 25px; padding: 0 7px; border-radius: 999px; color: #fff; background: #2674c7; font-size: .68rem; font-weight: 900; }
+.additional-material-panel > details > p { margin: 10px 0 12px; color: #58718c; font-size: .68rem; line-height: 1.45; }
+.additional-material-list { display: grid; gap: 8px; }
+.additional-material-panel .external-result-bubble {
+    grid-template-columns: 25px minmax(0, 1fr);
+    gap: 8px;
+    padding: 10px;
+    border: 1px solid #c1daf4;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, .92);
+    box-shadow: 0 4px 12px rgba(38, 116, 199, .08);
+}
+.additional-material-panel .external-result-number { width: 24px; height: 24px; background: #2674c7; font-size: .65rem; }
+.additional-material-panel .source-title-row strong { color: #163f68; font-size: .74rem; line-height: 1.35; }
+.additional-material-panel .external-result-content > p { margin-top: 3px; color: #66809b; font-size: .64rem; }
+.additional-material-panel .source-actions { gap: 8px; padding: 8px 0 0; }
+.additional-material-panel .text-link { color: #1763ad; font-size: .65rem; }
+
+@media (max-width: 1050px) {
+    .chat-workspace--with-material { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; }
+    .additional-material-panel { max-height: 190px; border-top: 1px solid #bed8f5; border-left: 0; }
+    .additional-material-panel > details { min-height: 0; padding: 10px 14px; }
+    .additional-material-panel > details > p { margin: 6px 0 8px; }
+    .additional-material-list { grid-auto-columns: minmax(220px, 280px); grid-auto-flow: column; overflow-x: auto; padding-bottom: 3px; }
+}
+
+@media (max-width: 620px) {
+    .additional-material-panel { max-height: 168px; }
+    .additional-material-panel > details { padding: 8px 10px; }
+    .additional-material-panel > details > p { display: none; }
+    .additional-material-list { margin-top: 8px; grid-auto-columns: minmax(210px, 82vw); }
 }

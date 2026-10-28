@@ -6,6 +6,8 @@ async function signIn(page, username, password = "Password123!", institution = "
   await page.getByLabel("Username").fill(username);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
+  const questionnaireClose = page.getByRole("button", { name: "Close questionnaire" });
+  if (await questionnaireClose.isVisible().catch(() => false)) await questionnaireClose.click();
 }
 
 test("operations health is protected and login validation is generic", async ({ page }) => {
@@ -48,6 +50,15 @@ test("student selects multiple modules and opens a module-scoped chat", async ({
   await expect(page.locator(".conversation-turn--student").last()).toContainText("balancing feedback loop");
   await expect(page.locator(".conversation-turn--bot").last()).toBeVisible({ timeout: 60_000 });
   await expect(page.locator(".conversation-turn--bot .conversation-copy").last()).not.toBeEmpty();
+  const workspaceOverflow = await page.locator(".chat-workspace").evaluate((element) => ({
+    clientWidth: element.clientWidth,
+    scrollWidth: element.scrollWidth,
+  }));
+  expect(workspaceOverflow.scrollWidth).toBeLessThanOrEqual(workspaceOverflow.clientWidth + 1);
+  const additionalPanel = page.locator("#additional-material-panel");
+  if (await additionalPanel.isVisible()) {
+    await expect(additionalPanel).toHaveCSS("border-left-color", "rgb(190, 216, 245)");
+  }
 });
 
 test("lecturer sees curation controls but cannot use student module settings", async ({ page }) => {

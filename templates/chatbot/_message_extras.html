@@ -51,6 +51,9 @@
                 {% endif %}
                 <div class="source-actions">
                     <a href="{{ source.url }}" class="text-link">View library record</a>
+                    {% if source.preview_kind == "pdf" and source.preview_url %}
+                        <a href="{{ source.preview_url }}" target="_blank" rel="noopener noreferrer" class="text-link">Open full document ↗</a>
+                    {% endif %}
                     {% if source.external_url %}
                         <a href="{{ source.external_url }}" target="_blank" rel="noopener noreferrer" class="text-link">Open original ↗</a>
                     {% endif %}
@@ -63,20 +66,17 @@
 {% endif %}
 
 {% if message.metadata.external_suggestions %}
-    <div class="inline-sources external-suggestions">
+    <div class="external-suggestions" aria-label="Additional material recommended by academic APIs">
         <div class="inline-sources__heading">
             <strong>Additional learning material</strong>
             <span>Optional and ungraded — explore these resources to deepen your understanding.</span>
         </div>
         <div class="external-result-list">
             {% for source in message.metadata.external_suggestions %}
-                <article class="external-result-bubble">
+                <article class="external-result-bubble" data-material-id="{{ source.material_id }}">
                     <span class="external-result-number">{{ source.number }}</span>
                     <div class="external-result-content">
-                        <div class="source-title-row">
-                            <strong>{{ source.display_label|default:source.title }}</strong>
-                            <span class="origin-badge origin-badge--external">Additional material</span>
-                        </div>
+                        <div class="source-title-row"><strong>{{ source.display_label|default:source.title }}</strong></div>
                         <p>{{ source.provider|default:"External provider" }} · {{ source.source_type }}</p>
                         {% if source.authors or source.publication %}<p>{{ source.authors }}{% if source.authors and source.publication %} · {% endif %}{{ source.publication }}</p>{% endif %}
                         <div class="source-actions">
@@ -84,21 +84,6 @@
                             {% if source.preview_kind == "pdf" and source.preview_url %}<a href="{{ source.preview_url }}" target="_blank" rel="noopener noreferrer" class="text-link">View / download PDF</a>{% endif %}
                             <a href="{{ source.url }}" class="text-link">Library record</a>
                         </div>
-                        {% if source.preview_url %}
-                            <details class="external-inline-preview">
-                                <summary>Preview here</summary>
-                                <div class="media-frame media-frame--{{ source.preview_kind }}">
-                                    <iframe
-                                        src="{{ source.preview_url }}{% if source.preview_kind == 'pdf' %}#view=FitH&toolbar=1{% endif %}"
-                                        title="Preview: {{ source.title }}"
-                                        loading="lazy"
-                                        referrerpolicy="strict-origin-when-cross-origin"
-                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                        allowfullscreen>
-                                    </iframe>
-                                </div>
-                            </details>
-                        {% endif %}
                     </div>
                 </article>
             {% endfor %}

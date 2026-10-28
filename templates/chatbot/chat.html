@@ -29,8 +29,9 @@
         <button type="button" class="course-modal__close" id="course-modal-close">Close</button>
     </dialog>
 
-    {% if module_guidance %}<div class="grounding-notice"><strong>{{ module_guidance }}</strong></div>{% endif %}
-
+    <div class="chat-workspace" id="chat-workspace">
+    <div class="chat-thread">
+    {% if module_guidance %}<div class="grounding-notice chat-thread__notice"><strong>{{ module_guidance }}</strong></div>{% endif %}
     <div class="chat-conversation" id="chat-conversation" aria-live="polite">
         {% for message in chat_messages %}
             <article class="conversation-turn conversation-turn--{{ message.sender }}">
@@ -101,6 +102,9 @@
                                     {% endif %}
                                     <div class="source-actions">
                                         <a href="{{ source.url }}" class="text-link">View library record</a>
+                                        {% if source.preview_kind == "pdf" and source.preview_url %}
+                                            <a href="{{ source.preview_url }}" target="_blank" rel="noopener noreferrer" class="text-link">Open full document ↗</a>
+                                        {% endif %}
                                         {% if source.external_url %}
                                             <a href="{{ source.external_url }}" target="_blank" rel="noopener noreferrer" class="text-link">Open original ↗</a>
                                         {% endif %}
@@ -113,20 +117,17 @@
                     {% endif %}
 
                     {% if message.sender == "bot" and message.metadata.external_suggestions %}
-                        <div class="inline-sources external-suggestions">
+                        <div class="external-suggestions" aria-label="Additional material recommended by academic APIs">
                             <div class="inline-sources__heading">
                                 <strong>Additional learning material</strong>
                                 <span>Optional and ungraded — explore these resources to deepen your understanding.</span>
                             </div>
                             <div class="external-result-list">
                                 {% for source in message.metadata.external_suggestions %}
-                                    <article class="external-result-bubble">
+                                    <article class="external-result-bubble" data-material-id="{{ source.material_id }}">
                                         <span class="external-result-number">{{ source.number }}</span>
                                         <div class="external-result-content">
-                                            <div class="source-title-row">
-                                                <strong>{{ source.display_label|default:source.title }}</strong>
-                                                <span class="origin-badge origin-badge--external">Additional material</span>
-                                            </div>
+                                            <div class="source-title-row"><strong>{{ source.display_label|default:source.title }}</strong></div>
                                             <p>{{ source.provider|default:"External provider" }} · {{ source.source_type }}</p>
                                             {% if source.authors or source.publication %}<p>{{ source.authors }}{% if source.authors and source.publication %} · {% endif %}{{ source.publication }}</p>{% endif %}
                                             <div class="source-actions">
@@ -134,21 +135,6 @@
                                                 {% if source.preview_kind == "pdf" and source.preview_url %}<a href="{{ source.preview_url }}" target="_blank" rel="noopener noreferrer" class="text-link">View / download PDF</a>{% endif %}
                                                 <a href="{{ source.url }}" class="text-link">Library record</a>
                                             </div>
-                                            {% if source.preview_url %}
-                                                <details class="external-inline-preview">
-                                                    <summary>Preview here</summary>
-                                                    <div class="media-frame media-frame--{{ source.preview_kind }}">
-                                                        <iframe
-                                                            src="{{ source.preview_url }}{% if source.preview_kind == 'pdf' %}#view=FitH&toolbar=1{% endif %}"
-                                                            title="Preview: {{ source.title }}"
-                                                            loading="lazy"
-                                                            referrerpolicy="strict-origin-when-cross-origin"
-                                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                                            allowfullscreen>
-                                                        </iframe>
-                                                    </div>
-                                                </details>
-                                            {% endif %}
                                         </div>
                                     </article>
                                 {% endfor %}
@@ -195,6 +181,18 @@
         <p>UJ Study Assistant can make mistakes. Verify important information against the cited material.</p>
     </form>
     {% endif %}
+    </div>
+    <aside class="additional-material-panel" id="additional-material-panel" hidden aria-label="Additional material">
+        <details open>
+            <summary>
+                <span><small>From academic APIs</small><strong>Additional material</strong></span>
+                <span class="additional-material-count" id="additional-material-count">0</span>
+            </summary>
+            <p>Optional resources recommended separately from lecturer-uploaded material.</p>
+            <div class="additional-material-list" id="additional-material-list"></div>
+        </details>
+    </aside>
+    </div>
 </section>
 {% endblock %}
 
@@ -367,9 +365,35 @@
         document.querySelectorAll("[data-render-markdown]").forEach(renderMarkdown);
 
         const conversation = document.getElementById("chat-conversation");
+        const workspace = document.getElementById("chat-workspace");
+        const additionalPanel = document.getElementById("additional-material-panel");
+        const additionalList = document.getElementById("additional-material-list");
+        const additionalCount = document.getElementById("additional-material-count");
         const form = document.getElementById("chat-form");
         const input = form?.querySelector("textarea");
         const sendButton = form?.querySelector(".chat-send");
+        const moveAdditionalMaterials = () => {
+            if (!conversation || !workspace || !additionalPanel || !additionalList) return;
+            const existing = new Set(
+                [...additionalList.querySelectorAll("[data-material-id]")]
+                    .map((item) => item.dataset.materialId)
+                    .filter(Boolean)
+            );
+            conversation.querySelectorAll(".external-suggestions").forEach((group) => {
+                group.querySelectorAll(".external-result-bubble").forEach((item) => {
+                    const materialId = item.dataset.materialId;
+                    if (!materialId || !existing.has(materialId)) {
+                        additionalList.append(item);
+                        if (materialId) existing.add(materialId);
+                    }
+                });
+                group.remove();
+            });
+            const count = additionalList.children.length;
+            additionalPanel.hidden = count === 0;
+            workspace.classList.toggle("chat-workspace--with-material", count > 0);
+            if (additionalCount) additionalCount.textContent = count;
+        };
         const appendLiveTurn = (sender, text) => {
             conversation?.querySelector(".chat-empty")?.remove();
             const turn = document.createElement("article");
@@ -396,6 +420,7 @@
             conversation.scrollTop = conversation.scrollHeight;
             return copy;
         };
+        moveAdditionalMaterials();
         if (conversation) conversation.scrollTop = conversation.scrollHeight;
         input?.addEventListener("keydown", (event) => {
             if (event.key === "Enter" && !event.shiftKey) {
@@ -459,6 +484,7 @@
                                 const extras = document.createElement("template");
                                 extras.innerHTML = eventData.extras_html;
                                 botCopy.parentElement.append(extras.content);
+                                moveAdditionalMaterials();
                             }
                             if (window.MathJax?.typesetPromise) {
                                 window.MathJax.typesetPromise([botCopy]).catch(() => {});

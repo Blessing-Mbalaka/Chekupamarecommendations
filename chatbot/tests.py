@@ -206,7 +206,9 @@ class ChatbotFlowTests(TestCase):
         self.assertContains(response, "Additional learning material")
         self.assertContains(response, "Optional and ungraded")
         self.assertContains(response, "Additional material")
-        self.assertContains(response, "youtube-nocookie.com/embed/fixtureVideo123")
+        self.assertContains(response, "additional-material-panel")
+        self.assertContains(response, "https://www.youtube.com/watch?v=fixtureVideo123")
+        self.assertNotContains(response, "youtube-nocookie.com/embed/fixtureVideo123")
 
     def test_saved_chat_does_not_render_material_that_is_still_pending(self):
         self.material.is_validated = False
