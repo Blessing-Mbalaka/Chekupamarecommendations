@@ -28,6 +28,15 @@ class User(AbstractUser, InstitutionOwnedModel):
     def get_absolute_url(self):
         return reverse("accounts:profile")
 
+    @property
+    def effective_role_display(self) -> str:
+        """Show platform privileges before the institution-level role field."""
+        if self.is_superuser:
+            return "Platform Administrator"
+        if self.is_staff and self.role == UserRole.STUDENT:
+            return "Staff"
+        return self.get_role_display()
+
 
 class StudentProfile(InstitutionOwnedModel):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="student_profile")

@@ -22,7 +22,7 @@
                             <span class="user-avatar">{{ user.username|first|upper }}</span>
                             <div>
                                 <strong>{{ user.get_full_name|default:user.username }}</strong>
-                                <span>{{ user.get_role_display }} · {{ user.institution.name }}</span>
+                                <span>{{ user.effective_role_display }} · {{ user.institution.name }}</span>
                             </div>
                         </div>
                     </div>

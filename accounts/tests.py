@@ -28,6 +28,16 @@ class DeactivatedLoginTests(TestCase):
         self.assertEqual(response.status_code, 302)
 
 
+class EffectiveRoleDisplayTests(TestCase):
+    def test_superuser_is_displayed_as_platform_administrator(self):
+        user = get_user_model()(username="platform-admin", role=UserRole.STUDENT, is_staff=True, is_superuser=True)
+        self.assertEqual(user.effective_role_display, "Platform Administrator")
+
+    def test_student_role_is_preserved_for_regular_user(self):
+        user = get_user_model()(username="regular-student", role=UserRole.STUDENT)
+        self.assertEqual(user.effective_role_display, "Student")
+
+
 class ModuleSettingsTests(TestCase):
     def setUp(self):
         user_model = get_user_model()

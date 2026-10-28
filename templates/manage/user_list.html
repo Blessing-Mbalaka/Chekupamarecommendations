@@ -28,7 +28,7 @@
             <div>
                 <h4>{{ row.user.get_full_name|default:row.user.username }} <span class="muted">@{{ row.user.username }}</span></h4>
                 <p class="muted">
-                    {{ row.user.get_role_display }}{% if not row.user.is_active %} · Deactivated{% endif %}
+                    {{ row.user.effective_role_display }}{% if not row.user.is_active %} · Deactivated{% endif %}
                     · {{ row.user.email }}
                     {% for role, codes in row.courses.items %} · {{ role }}: {{ codes|join:", " }}{% endfor %}
                 </p>
