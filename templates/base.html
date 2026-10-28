@@ -27,7 +27,7 @@
                         </div>
                     </div>
                     <nav class="nav-links">
-                        {% if user.role == 'admin' or user.is_superuser %}<a class="nav-link {% if '/institutions/course-management/' in request.path or '/institutions/structure/' in request.path %}nav-link--active{% endif %}" href="{% url 'institutions:course_management' %}"><span class="nav-icon" aria-hidden="true">▦</span><span>Course management</span></a>{% endif %}
+                        {% if user.role == 'admin' or user.is_superuser or user.role == 'lecturer' %}<a class="nav-link {% if '/institutions/course-management/' in request.path or '/institutions/structure/' in request.path %}nav-link--active{% endif %}" href="{% url 'institutions:course_management' %}"><span class="nav-icon" aria-hidden="true">▦</span><span>{% if user.role == 'lecturer' and not user.is_superuser %}Topic management{% else %}Course management{% endif %}</span></a>{% endif %}
                         <a href="{% url 'core:dashboard' %}" class="nav-link {% if request.path == '/dashboard/' %}nav-link--active{% endif %}">
                             <span class="nav-icon" aria-hidden="true">
                                 <svg viewBox="0 0 24 24" focusable="false"><path d="M3 13h8V3H3zm10 8h8V11h-8zM3 21h8v-6H3zm10-10h8V3h-8z"/></svg>

@@ -119,6 +119,42 @@ class InstitutionTests(TestCase):
         self.assertEqual(self.a.slug, 'jbs-faculty')
         self.assertEqual(self.a.email, 'admin@jbs.example')
 
+    def test_lecturer_manages_topics_only_for_assigned_modules(self):
+        self.client.force_login(self.lecturer)
+        response = self.client.get(reverse('institutions:course_management'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Topic management')
+        self.assertContains(response, self.module.code)
+        self.assertNotContains(response, self.unassigned.code)
+
+        response = self.client.post(reverse('institutions:course_management'), {
+            'action': 'topic',
+            'topic-course': self.module.pk,
+            'topic-title': 'Lecturer topic',
+            'topic-description': 'Created by the assigned lecturer.',
+        })
+        self.assertRedirects(response, reverse('institutions:course_management'))
+        self.assertTrue(Topic._base_manager.filter(course=self.module, title='Lecturer topic').exists())
+
+        response = self.client.post(reverse('institutions:course_management'), {
+            'action': 'topic',
+            'topic-course': self.unassigned.pk,
+            'topic-title': 'Forbidden topic',
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Topic._base_manager.filter(course=self.unassigned, title='Forbidden topic').exists())
+
+    def test_lecturer_cannot_change_admin_course_structure(self):
+        self.client.force_login(self.lecturer)
+        response = self.client.post(reverse('institutions:course_management'), {
+            'action': 'module',
+            'module-department': self.da.pk,
+            'module-code': 'FORBIDDEN',
+            'module-title': 'Forbidden module',
+        })
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(Course._base_manager.filter(code='FORBIDDEN').exists())
+
     def test_structure_creates_scoped_department_module_topic(self):
         self.client.force_login(self.other)
         self.client.post(reverse('institutions:structure'), {'action': 'department', 'department-code': 'eng', 'department-name': 'Engineering', 'institution': self.a.pk})

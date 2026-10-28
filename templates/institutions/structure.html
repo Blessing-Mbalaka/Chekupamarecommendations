@@ -1,11 +1,12 @@
 {% extends 'base.html' %}
 {% block title %}Course management · Learning Navigator{% endblock %}
 {% block content %}
+{% if is_course_admin %}
 <section class="course-management-hero">
     <div>
         <p class="eyebrow">Administrator workspace</p>
         <h1>Course management</h1>
-        <p>Set the institution or faculty login code, build departments and modules, and organize the topics students will learn.</p>
+        <p>Set the institution or faculty login code, then create the departments and modules lecturers will teach. Topics are optional here and can be added by the assigned lecturer later.</p>
     </div>
     <div class="course-management-code">
         <span>Current login code</span>
@@ -38,7 +39,7 @@
 
 <section class="management-card curriculum-card">
     <div class="section-heading-row">
-        <div><p class="eyebrow">Curriculum</p><h2>Departments, modules and topics</h2></div>
+        <div><p class="eyebrow">Curriculum</p><h2>Departments and modules</h2><p class="muted">Topics are optional and may be maintained by assigned lecturers.</p></div>
         <span>{{ departments|length }} department{{ departments|length|pluralize }}</span>
     </div>
     <div class="department-grid">
@@ -51,7 +52,7 @@
                             <div><strong>{{ module.code }} · {{ module.title }}</strong><a href="?edit=module&amp;id={{ module.pk }}">Edit module</a></div>
                             <p>{{ module.description|default:"No module description yet." }}</p>
                             <div class="topic-chips">
-                                {% for topic in module.topics.all %}<a href="?edit=topic&amp;id={{ topic.pk }}">{{ topic.title }}</a>{% empty %}<span>No topics yet</span>{% endfor %}
+                                {% for topic in module.topics.all %}<a href="?edit=topic&amp;id={{ topic.pk }}">{{ topic.title }}</a>{% empty %}<span>No topics added by lecturer yet</span>{% endfor %}
                             </div>
                         </div>
                     {% empty %}<p class="empty-management-state">No modules in this department yet.</p>{% endfor %}
@@ -63,9 +64,29 @@
     </div>
 </section>
 
-<section class="management-grid management-grid--forms">
-    <article class="management-card"><p class="eyebrow">Step 1</p><h2>{% if department_form.instance.pk %}Edit department{% else %}Add department{% endif %}</h2><form method="post" class="management-form">{% csrf_token %}<input type="hidden" name="action" value="department"><input type="hidden" name="record_id" value="{{ department_form.instance.pk|default:'' }}">{{ department_form.as_p }}<button class="primary-button" type="submit">Save department</button></form></article>
-    <article class="management-card"><p class="eyebrow">Step 2</p><h2>{% if module_form.instance.pk %}Edit module{% else %}Add module{% endif %}</h2><form method="post" class="management-form">{% csrf_token %}<input type="hidden" name="action" value="module"><input type="hidden" name="record_id" value="{{ module_form.instance.pk|default:'' }}">{{ module_form.as_p }}<button class="primary-button" type="submit">Save module</button></form></article>
-    <article class="management-card"><p class="eyebrow">Step 3</p><h2>{% if topic_form.instance.pk %}Edit topic{% else %}Add topic{% endif %}</h2><form method="post" class="management-form">{% csrf_token %}<input type="hidden" name="action" value="topic"><input type="hidden" name="record_id" value="{{ topic_form.instance.pk|default:'' }}">{{ topic_form.as_p }}<button class="primary-button" type="submit">Save topic</button></form></article>
+<section class="management-grid management-grid--admin-forms">
+    <article class="management-card"><p class="eyebrow">Step 1</p><h2>{% if department_form.instance.pk %}Edit department{% else %}Add department{% endif %}</h2><p class="muted">Create the academic unit that owns the module.</p><form method="post" class="management-form">{% csrf_token %}<input type="hidden" name="action" value="department"><input type="hidden" name="record_id" value="{{ department_form.instance.pk|default:'' }}">{{ department_form.as_p }}<button class="primary-button" type="submit">Save department</button></form></article>
+    <article class="management-card"><p class="eyebrow">Step 2</p><h2>{% if module_form.instance.pk %}Edit module{% else %}Add module{% endif %}</h2><p class="muted">Once saved, assign a lecturer from User management.</p><form method="post" class="management-form">{% csrf_token %}<input type="hidden" name="action" value="module"><input type="hidden" name="record_id" value="{{ module_form.instance.pk|default:'' }}">{{ module_form.as_p }}<button class="primary-button" type="submit">Save module</button></form></article>
 </section>
+
+<details class="management-card optional-topic-card" {% if topic_form.errors or topic_form.instance.pk %}open{% endif %}>
+    <summary><span><small>Optional admin action</small><strong>{% if topic_form.instance.pk %}Edit topic{% else %}Add a topic now{% endif %}</strong></span><span aria-hidden="true">+</span></summary>
+    <div class="optional-topic-card__body"><p class="muted">You can leave this for the lecturer. A module does not require a topic before it can be assigned or used.</p><form method="post" class="management-form">{% csrf_token %}<input type="hidden" name="action" value="topic"><input type="hidden" name="record_id" value="{{ topic_form.instance.pk|default:'' }}">{{ topic_form.as_p }}<button class="secondary-button" type="submit">Save optional topic</button></form></div>
+</details>
+{% else %}
+<section class="course-management-hero">
+    <div><p class="eyebrow">Lecturer workspace</p><h1>Topic management</h1><p>Add and maintain the teaching topics for modules assigned to you. Your institution administrator creates the departments and modules.</p></div>
+    <div class="course-management-code"><span>Assigned modules</span><strong>{{ available_courses|length }}</strong><small>You can only manage topics in your own modules.</small></div>
+</section>
+<section class="management-grid management-grid--top topic-workspace">
+    <article class="management-card">
+        <p class="eyebrow">Your curriculum</p><h2>Current topics</h2>
+        <div class="module-stack">{% for module in available_courses %}<div class="module-admin-card"><div><strong>{{ module.code }} · {{ module.title }}</strong></div><div class="topic-chips">{% for topic in module.topics.all %}<a href="?edit=topic&amp;id={{ topic.pk }}">{{ topic.title }}</a>{% empty %}<span>No topics yet</span>{% endfor %}</div></div>{% empty %}<p class="empty-management-state">No modules are assigned to you yet. Ask your institution administrator to assign one from User management.</p>{% endfor %}</div>
+    </article>
+    <article class="management-card">
+        <p class="eyebrow">Lecturer action</p><h2>{% if topic_form.instance.pk %}Edit topic{% else %}Add topic{% endif %}</h2><p class="muted">Choose one of your assigned modules and describe the unit of learning.</p>
+        <form method="post" class="management-form">{% csrf_token %}<input type="hidden" name="action" value="topic"><input type="hidden" name="record_id" value="{{ topic_form.instance.pk|default:'' }}">{{ topic_form.as_p }}<button class="primary-button" type="submit">Save topic</button></form>
+    </article>
+</section>
+{% endif %}
 {% endblock %}

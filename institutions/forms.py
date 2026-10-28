@@ -47,6 +47,11 @@ class InstitutionIdentityForm(forms.ModelForm):
         help_texts = {
             'slug': 'Share this short code with lecturers, teaching assistants, and students for login.',
         }
+        widgets = {
+            'name': forms.TextInput(attrs={'placeholder': 'e.g. Johannesburg Business School'}),
+            'slug': forms.TextInput(attrs={'placeholder': 'e.g. jbs'}),
+            'email': forms.EmailInput(attrs={'placeholder': 'e.g. admin@jbs.ac.za'}),
+        }
 
     def clean_slug(self):
         code = self.cleaned_data['slug'].strip().lower()
@@ -58,6 +63,10 @@ class DepartmentForm(forms.ModelForm):
     class Meta:
         model = Department
         fields = ['name', 'code']
+        widgets = {
+            'name': forms.TextInput(attrs={'placeholder': 'e.g. School of Business'}),
+            'code': forms.TextInput(attrs={'placeholder': 'e.g. BUS'}),
+        }
     def clean_code(self):
         from .tenancy import current_institution_id
         code = self.cleaned_data['code'].lower()
@@ -69,6 +78,11 @@ class ModuleForm(forms.ModelForm):
     class Meta:
         model = Course
         fields = ['department', 'code', 'title', 'description']
+        widgets = {
+            'code': forms.TextInput(attrs={'placeholder': 'e.g. MBA501'}),
+            'title': forms.TextInput(attrs={'placeholder': 'e.g. Strategic Management'}),
+            'description': forms.Textarea(attrs={'placeholder': 'e.g. Core strategy concepts and their application in modern organizations.', 'rows': 3}),
+        }
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['department'].required = True
@@ -83,3 +97,13 @@ class TopicForm(forms.ModelForm):
     class Meta:
         model = Topic
         fields = ['course', 'title', 'description']
+        labels = {'course': 'Module'}
+        widgets = {
+            'title': forms.TextInput(attrs={'placeholder': 'e.g. Competitive advantage'}),
+            'description': forms.Textarea(attrs={'placeholder': 'e.g. Frameworks for building and sustaining a competitive advantage.', 'rows': 3}),
+        }
+
+    def __init__(self, *args, course_queryset=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if course_queryset is not None:
+            self.fields['course'].queryset = course_queryset
