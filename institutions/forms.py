@@ -35,6 +35,53 @@ class StudentRegistrationForm(UserCreationForm):
         return self.cleaned_data['invitation_code']
 
 
+class LecturerApplicationForm(forms.ModelForm):
+    institution_code = forms.SlugField(
+        max_length=60,
+        label="Institution / faculty code",
+        widget=forms.TextInput(attrs={"placeholder": "e.g. jbs", "autocomplete": "organization"}),
+    )
+    class Meta:
+        model = User
+        fields = ["username", "first_name", "last_name", "email"]
+        widgets = {
+            "username": forms.TextInput(attrs={"placeholder": "e.g. j.smith"}),
+            "first_name": forms.TextInput(attrs={"placeholder": "e.g. Jane"}),
+            "last_name": forms.TextInput(attrs={"placeholder": "e.g. Smith"}),
+            "email": forms.EmailInput(attrs={"placeholder": "e.g. jane.smith@university.ac.za"}),
+        }
+
+    def clean_institution_code(self):
+        code = self.cleaned_data["institution_code"].strip().lower()
+        self.institution = Institution.objects.filter(slug__iexact=code, is_active=True).first()
+        if not self.institution:
+            raise forms.ValidationError("Enter a valid institution or faculty code.")
+        return code
+
+    def clean_username(self):
+        username = self.cleaned_data["username"].strip()
+        if User._base_manager.filter(username__iexact=username).exists():
+            raise forms.ValidationError("This username is already in use.")
+        return username
+
+    def clean_email(self):
+        email = self.cleaned_data["email"].strip().lower()
+        if User._base_manager.filter(email__iexact=email).exists():
+            raise forms.ValidationError("An account already uses this email address.")
+        return email
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        user.institution = self.institution
+        user.role = "lecturer"
+        user.is_active = False
+        user.is_staff = user.is_superuser = False
+        user.set_unusable_password()
+        if commit:
+            user.save()
+        return user
+
+
 class InstitutionIdentityForm(forms.ModelForm):
     class Meta:
         model = Institution

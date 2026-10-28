@@ -23,17 +23,17 @@
 </section>
 
 <section class="panel">
-    {% for row in rows %}
-        <article class="library-material-row">
-            <div>
-                <h4>{{ row.user.get_full_name|default:row.user.username }} <span class="muted">@{{ row.user.username }}</span></h4>
-                <p class="muted">
-                    {{ row.user.effective_role_display }}{% if not row.user.is_active %} · Deactivated{% endif %}
-                    · {{ row.user.email }}
-                    {% for role, codes in row.courses.items %} · {{ role }}: {{ codes|join:", " }}{% endfor %}
-                </p>
-            </div>
-            <div class="button-row">
+    <div class="management-table-wrap">
+    <table class="management-table">
+        <thead><tr><th>Person</th><th>Role</th><th>Modules</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>
+        {% for row in rows %}
+        <tr>
+            <td data-label="Person"><strong>{{ row.user.get_full_name|default:row.user.username }}</strong><span>@{{ row.user.username }}</span><span>{{ row.user.email }}</span></td>
+            <td data-label="Role">{{ row.user.effective_role_display }}</td>
+            <td data-label="Modules">{% for role, codes in row.courses.items %}<span class="table-module-list"><strong>{{ role }}</strong> {{ codes|join:", " }}</span>{% empty %}<span class="muted">None allocated</span>{% endfor %}</td>
+            <td data-label="Status"><span class="status-pill {% if row.user.is_active %}status-pill--active{% endif %}">{% if row.user.is_active %}Active{% else %}Pending / deactivated{% endif %}</span></td>
+            <td data-label="Actions"><div class="button-row management-table__actions">
                 <a class="ghost-button" href="{% url 'core:manage_user_edit' row.user.pk %}">Edit</a>
                 {% if row.user.is_active %}
                 <form method="post" action="{% url 'core:manage_user_invite' row.user.pk %}">
@@ -45,10 +45,11 @@
                     {% csrf_token %}
                     <button type="submit" class="ghost-button">{% if row.user.is_active %}Deactivate{% else %}Activate{% endif %}</button>
                 </form>
-            </div>
-        </article>
-    {% empty %}
-        <p class="muted">No users match these filters.</p>
-    {% endfor %}
+            </div></td>
+        </tr>
+        {% empty %}<tr><td colspan="5" class="muted">No users match these filters.</td></tr>{% endfor %}
+        </tbody>
+    </table>
+    </div>
 </section>
 {% endblock %}

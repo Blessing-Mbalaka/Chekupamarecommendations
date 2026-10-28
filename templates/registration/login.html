@@ -10,21 +10,7 @@
             <h2 id="login-title">Continue your learning journey</h2>
             <p>One focused space for module materials, grounded study support, quizzes, and recommendations.</p>
         </div>
-        <div class="demo-strip">
-            <div class="demo-strip__heading">
-                <h3>Explore a demo role</h3>
-                <span>No setup required</span>
-            </div>
-            <div class="demo-grid">
-                {% for account in demo_accounts %}
-                    <article class="demo-card">
-                        <strong>{{ account.label }}</strong>
-                        <p><span>Username</span><code>{{ account.username }}</code></p>
-                        <p><span>Password</span><code>{{ account.password }}</code></p>
-                    </article>
-                {% endfor %}
-            </div>
-        </div>
+        <div class="login-intro__onboarding"><strong>Joining as a lecturer?</strong><p>Apply with your institutional email and teaching modules. Access begins only after administrator approval.</p><a href="{% url 'institutions:join_lecturer' %}">Apply for lecturer access</a></div>
     </div>
     <form method="post" class="login-form-panel">
         <div class="login-form-panel__heading">
@@ -44,7 +30,7 @@
         {% endfor %}
         {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
         <button type="submit" class="primary-button login-submit">Sign in</button>
-        <p><a href="{% url 'institutions:join' %}">Create a student account with an administrator invitation</a> · <a href="{% url 'institutions:register' %}">Register an institution or faculty</a></p>
+        <p><a href="{% url 'institutions:join_lecturer' %}">Apply as a lecturer</a> · <a href="{% url 'institutions:join' %}">Join as a student</a> · <a href="{% url 'institutions:register' %}">Register an institution or faculty</a></p>
         <p class="login-assurance">Your conversation history and learning progress stay attached to your account.</p>
         <aside class="login-survey-notice">
             <span aria-hidden="true">

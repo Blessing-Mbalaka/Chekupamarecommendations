@@ -6,15 +6,42 @@
 <section class="panel">
     <p class="eyebrow">Administration</p>
     <h2>{% if managed_user %}Edit {{ managed_user.username }}{% else %}New user{% endif %}</h2>
-    <p class="muted">Courses are applied according to the role: students are enrolled, lecturers teach, TAs support. Leave the temporary-password fields blank for the normal secure email invitation workflow.</p>
-    <div class="management-password-warning"><strong>Demo access</strong><span>You may set a temporary password and share it manually when SMTP is unavailable. Do not email or reuse real production passwords.</span></div>
+    <p class="muted">Courses are applied according to the role: students are enrolled, lecturers teach, TAs support. Pending users receive no email until activation; activation sends a secure password setup link and the approved module allocation.</p>
     <form method="post">
         {% csrf_token %}
-        {{ form.as_p }}
+        {% if form.errors %}<div class="form-error-summary" role="alert"><strong>Please correct the highlighted fields.</strong><p>The account has not been saved.</p>{{ form.non_field_errors }}</div>{% endif %}
+        {% for field in form %}
+            {% if field.name == 'courses' %}
+                <fieldset class="module-allocation-fieldset">
+                    <legend>{{ field.label }}</legend>
+                    <p class="muted">{{ field.help_text }}</p>
+                    <div class="button-row"><button type="button" class="ghost-button" data-module-action="all">Select all modules</button><button type="button" class="ghost-button" data-module-action="clear">Clear selection</button><strong data-module-count></strong></div>
+                    {{ field }}
+                    {{ field.errors }}
+                </fieldset>
+            {% else %}
+                <p><label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} <span class="required-marker">Required</span>{% endif %}</label> {{ field }}{% if field.help_text %}<span class="helptext">{{ field.help_text }}</span>{% endif %}{{ field.errors }}</p>
+            {% endif %}
+        {% endfor %}
         <div class="button-row">
             <button type="submit" class="primary-button">Save</button>
             <a class="ghost-button" href="{% url 'core:manage_users' %}">Cancel</a>
         </div>
     </form>
 </section>
+{% endblock %}
+{% block extra_scripts %}
+<script>
+(() => {
+    const boxes = [...document.querySelectorAll('input[name="courses"]')];
+    const count = document.querySelector('[data-module-count]');
+    const update = () => { if (count) count.textContent = `${boxes.filter(box => box.checked).length} module(s) selected`; };
+    document.querySelectorAll('[data-module-action]').forEach(button => button.addEventListener('click', () => {
+        boxes.forEach(box => { box.checked = button.dataset.moduleAction === 'all'; });
+        update();
+    }));
+    boxes.forEach(box => box.addEventListener('change', update));
+    update();
+})();
+</script>
 {% endblock %}

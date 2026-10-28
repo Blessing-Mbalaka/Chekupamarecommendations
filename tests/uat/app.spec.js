@@ -1,4 +1,5 @@
 const { test, expect } = require("@playwright/test");
+const pendingUsername = `uat_pending_${Date.now()}`;
 
 async function signIn(page, username, password = "Password123!", institution = "jbs") {
   await page.goto("/login/");
@@ -6,6 +7,8 @@ async function signIn(page, username, password = "Password123!", institution = "
   await page.getByLabel("Username").fill(username);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
+  const skipTutorial = page.getByRole("button", { name: "Skip tutorial" });
+  if (await skipTutorial.isVisible().catch(() => false)) await skipTutorial.click();
   const questionnaireClose = page.getByRole("button", { name: "Close questionnaire" });
   if (await questionnaireClose.isVisible().catch(() => false)) await questionnaireClose.click();
 }
@@ -65,6 +68,8 @@ test("lecturer sees curation controls but cannot use student module settings", a
   await signIn(page, "demo_lecturer");
   await expect(page).toHaveURL(/\/dashboard\/$/);
   await expect(page.getByRole("link", { name: "Manage material" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Topic management" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Add course / module" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Module settings" })).toHaveCount(0);
 
   await page.goto("/accounts/settings/modules/");
@@ -72,11 +77,26 @@ test("lecturer sees curation controls but cannot use student module settings", a
   await expect(page.getByText("Module selection is available to student accounts.")).toBeVisible();
 });
 
+test("lecturer application remains pending without module controls", async ({ page }) => {
+  await page.goto("/institutions/join-lecturer/");
+  await expect(page.getByRole("heading", { name: "Apply for lecturer access" })).toBeVisible();
+  await expect(page.getByText("No email is sent when you apply.")).toBeVisible();
+  await page.getByLabel("Institution / faculty code").fill("jbs");
+  await expect(page.locator('input[name="courses"]')).toHaveCount(0);
+  await page.getByLabel("Username").fill(pendingUsername);
+  await page.getByLabel("First name").fill("Pending");
+  await page.getByLabel("Last name").fill("Lecturer");
+  await page.getByLabel("Email", { exact: true }).fill(`${pendingUsername}@example.com`);
+  await page.getByRole("button", { name: "Submit for activation" }).click();
+  await expect(page).toHaveURL(/\/login\/$/);
+  await expect(page.getByText(/No email is sent until your institution administrator approves/)).toBeVisible();
+});
+
 test("institution admin has overview and user-management access", async ({ page }) => {
   await signIn(page, "uat_admin");
   await expect(page).toHaveURL(/\/dashboard\/$/);
-  await page.getByRole("link", { name: "Course management" }).click();
-  await expect(page).toHaveURL(/\/institutions\/course-management\/$/);
+  await page.getByRole("link", { name: "Add course / module" }).click();
+  await expect(page).toHaveURL(/\/institutions\/course-management\/#module-form$/);
   await expect(page.getByRole("heading", { name: "Course management" })).toBeVisible();
   await expect(page.getByText("Current login code")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Add module" })).toBeVisible();
@@ -84,4 +104,20 @@ test("institution admin has overview and user-management access", async ({ page 
   await expect(page).toHaveURL(/\/manage\/users\/$/);
   await expect(page.getByText("@demo_student", { exact: true })).toBeVisible();
   await expect(page.getByText("@demo_lecturer", { exact: true })).toBeVisible();
+  await page.getByRole("navigation").getByRole("link", { name: "Manage material" }).click();
+  await expect(page.locator("th", { hasText: "Uploaded by" })).toBeVisible();
+  const pageOverflow = await page.evaluate(() => ({ client: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth }));
+  expect(pageOverflow.scroll).toBeLessThanOrEqual(pageOverflow.client + 1);
+});
+
+test("first login presents a role-specific tutorial that can be replayed", async ({ page }) => {
+  await page.goto("/login/");
+  await page.getByLabel("Institution / faculty").fill("jbs");
+  await page.getByLabel("Username").fill("uat_admin");
+  await page.getByLabel("Password").fill("Password123!");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByRole("dialog", { name: "Your dashboard" })).toBeVisible();
+  await expect(page.getByText(/Step 1 of 9/)).toBeVisible();
+  await page.getByRole("button", { name: "Skip tutorial" }).click();
+  await expect(page.getByRole("button", { name: "Replay tutorial" })).toBeVisible();
 });

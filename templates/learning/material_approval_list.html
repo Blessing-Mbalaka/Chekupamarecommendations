@@ -17,35 +17,25 @@
             <button type="submit" class="secondary-button">Approve selected</button>
         </form>
     {% endif %}
-    {% for material in pending_materials %}
-        <article class="library-material-row">
-            <div>
-                <h4>
-                    <label>
-                        <input type="checkbox" name="material_ids" value="{{ material.pk }}" form="bulk-approval-form">
-                        {{ material.title }}
-                    </label>
-                </h4>
-                <p class="muted">
-                    {{ material.course.code }} · {{ material.source_provider|default:"External provider" }}
-                    {% if material.authors %} · {{ material.authors }}{% endif %}
-                    {% if material.publication_year %} · {{ material.publication_year }}{% endif %}
-                </p>
-                {% if material.description %}<p>{{ material.description|truncatechars:320 }}</p>{% endif %}
-                <div class="button-row">
+    <div class="management-table-wrap"><table class="management-table management-table--approvals"><thead><tr><th>Select</th><th>Material</th><th>Module</th><th>Provider</th><th>Details</th><th>Actions</th><th>Approval</th></tr></thead><tbody>
+    {% for material in pending_materials %}<tr>
+            <td data-label="Select"><input aria-label="Select {{ material.title }}" type="checkbox" name="material_ids" value="{{ material.pk }}" form="bulk-approval-form"></td>
+            <td data-label="Material"><strong>{{ material.title }}</strong>{% if material.description %}<span>{{ material.description|truncatechars:120 }}</span>{% endif %}</td>
+            <td data-label="Module">{{ material.course.code }}</td>
+            <td data-label="Provider">{{ material.source_provider|default:"External provider" }}</td>
+            <td data-label="Details">{% if material.authors %}{{ material.authors }}{% endif %}{% if material.publication_year %} · {{ material.publication_year }}{% endif %}</td>
+            <td data-label="Actions"><div class="button-row management-table__actions">
                     <a class="ghost-button" href="{{ material.get_absolute_url }}">Review record</a>
                     {% if material.effective_source_url %}
                         <a class="ghost-button" href="{{ material.effective_source_url }}" target="_blank" rel="noopener noreferrer">Open source</a>
                     {% endif %}
-                </div>
-            </div>
-            <form method="post" action="{% url 'learning:material_approve' material.pk %}">
+                </div></td>
+            <td data-label="Approval"><form method="post" action="{% url 'learning:material_approve' material.pk %}">
                 {% csrf_token %}
                 <button type="submit" class="primary-button">Approve for students</button>
-            </form>
-        </article>
-    {% empty %}
-        <p class="muted">No API-fetched materials are waiting for your approval.</p>
-    {% endfor %}
+            </form></td>
+        </tr>
+    {% empty %}<tr><td colspan="7" class="muted">No API-fetched materials are waiting for your approval.</td></tr>{% endfor %}
+    </tbody></table></div>
 </section>
 {% endblock %}

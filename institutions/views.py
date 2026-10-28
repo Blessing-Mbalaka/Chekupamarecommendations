@@ -11,6 +11,7 @@ from .forms import (
     DepartmentForm,
     InstitutionIdentityForm,
     InstitutionRegistrationForm,
+    LecturerApplicationForm,
     ModuleForm,
     StudentRegistrationForm,
     TopicForm,
@@ -54,45 +55,49 @@ def register_student(request):
     return render(request, 'institutions/register.html', {'form': form, 'heading': 'Join your institution'})
 
 
+def register_lecturer(request):
+    if request.user.is_authenticated:
+        return redirect('core:dashboard')
+    form = LecturerApplicationForm(request.POST or None)
+    if request.method == 'POST' and form.is_valid():
+        with transaction.atomic(), institution_context(form.institution):
+            form.save()
+        messages.success(
+            request,
+            'Lecturer application submitted. No email is sent until your institution administrator approves and activates the account.',
+        )
+        return redirect('login')
+    return render(request, 'institutions/lecturer_register.html', {'form': form})
+
+
 @login_required
 def structure(request):
     is_admin = request.user.role == 'admin' or request.user.is_superuser
-    is_lecturer = request.user.role == 'lecturer'
-    if not is_admin and not is_lecturer:
-        raise PermissionDenied('Lecturer or institution administrator access required.')
-    available_courses = Course.objects.all()
+    if request.user.role == 'lecturer' and not request.user.is_superuser:
+        return redirect('institutions:topic_management')
+    if not is_admin:
+        raise PermissionDenied('Institution administrator access required.')
     edit_kind = request.GET.get('edit')
     edit_id = request.GET.get('id')
-    edit_models = {'topic': Topic}
-    if is_admin:
-        edit_models.update({'department': Department, 'module': Course})
+    edit_models = {'department': Department, 'module': Course}
     editing = get_object_or_404(edit_models[edit_kind], pk=edit_id) if edit_kind in edit_models and edit_id else None
-    department_form = DepartmentForm(prefix='department', instance=editing if edit_kind == 'department' else None) if is_admin else None
-    module_form = ModuleForm(prefix='module', instance=editing if edit_kind == 'module' else None) if is_admin else None
-    topic_form = TopicForm(
-        prefix='topic',
-        instance=editing if edit_kind == 'topic' else None,
-        course_queryset=available_courses,
-    )
-    institution_form = InstitutionIdentityForm(prefix='institution', instance=request.institution) if is_admin else None
-    departments = Department.objects.prefetch_related('modules__topics') if is_admin else None
+    department_form = DepartmentForm(prefix='department', instance=editing if edit_kind == 'department' else None)
+    module_form = ModuleForm(prefix='module', instance=editing if edit_kind == 'module' else None)
+    institution_form = InstitutionIdentityForm(prefix='institution', instance=request.institution)
+    departments = Department.objects.prefetch_related('modules__topics')
 
     def page_context():
         return {
-            'is_course_admin': is_admin,
+            'is_course_admin': True,
             'institution_form': institution_form,
             'department_form': department_form,
             'module_form': module_form,
-            'topic_form': topic_form,
             'departments': departments,
-            'available_courses': available_courses.prefetch_related('topics'),
         }
 
     if request.method == 'POST':
         action = request.POST.get('action')
         if action == 'institution':
-            if not is_admin:
-                raise PermissionDenied('Institution administrator access required.')
             institution_form = InstitutionIdentityForm(
                 request.POST,
                 prefix='institution',
@@ -104,28 +109,48 @@ def structure(request):
                 return redirect('institutions:course_management')
             return render(request, 'institutions/structure.html', page_context())
         if action == 'rotate_invite':
-            if not is_admin:
-                raise PermissionDenied('Institution administrator access required.')
             from .models import join_token
             request.institution.join_code = join_token()
             request.institution.save(update_fields=['join_code'])
             messages.success(request, 'Invitation code replaced. The previous code no longer works.')
             return redirect('institutions:course_management')
-        choices = {'topic': (TopicForm, Topic)}
-        if is_admin:
-            choices.update({'department': (DepartmentForm, Department), 'module': (ModuleForm, Course)})
+        choices = {'department': (DepartmentForm, Department), 'module': (ModuleForm, Course)}
         if action not in choices:
             raise PermissionDenied('Unknown action.')
         form_class, model = choices[action]
         record_id = request.POST.get('record_id')
         instance = get_object_or_404(model, pk=record_id) if record_id else None
-        form_kwargs = {'course_queryset': available_courses} if action == 'topic' else {}
-        form = form_class(request.POST, prefix=action, instance=instance, **form_kwargs)
+        form = form_class(request.POST, prefix=action, instance=instance)
         if form.is_valid():
             form.save()
             messages.success(request, f'{action.title()} saved.')
             return redirect('institutions:course_management')
         if action == 'department': department_form = form
-        elif action == 'module': module_form = form
-        else: topic_form = form
+        else: module_form = form
     return render(request, 'institutions/structure.html', page_context())
+
+
+@login_required
+def topic_management(request):
+    is_admin = request.user.role == 'admin' or request.user.is_superuser
+    is_lecturer = request.user.role == 'lecturer'
+    if not is_admin and not is_lecturer:
+        raise PermissionDenied('Lecturer or institution administrator access required.')
+    available_courses = Course.objects.all() if is_admin else Course.objects.filter(lecturers=request.user)
+    editing = None
+    if request.GET.get('edit') == 'topic' and request.GET.get('id'):
+        editing = get_object_or_404(Topic.objects.filter(course__in=available_courses), pk=request.GET['id'])
+    topic_form = TopicForm(prefix='topic', instance=editing, course_queryset=available_courses)
+    if request.method == 'POST':
+        record_id = request.POST.get('record_id')
+        instance = get_object_or_404(Topic.objects.filter(course__in=available_courses), pk=record_id) if record_id else None
+        topic_form = TopicForm(request.POST, prefix='topic', instance=instance, course_queryset=available_courses)
+        if topic_form.is_valid():
+            topic_form.save()
+            messages.success(request, 'Topic saved.')
+            return redirect('institutions:topic_management')
+    return render(request, 'institutions/topic_management.html', {
+        'topic_form': topic_form,
+        'available_courses': available_courses.prefetch_related('topics'),
+        'is_course_admin': is_admin,
+    })

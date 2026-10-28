@@ -2161,6 +2161,58 @@ input:focus, textarea:focus, select:focus, button:focus-visible, a:focus-visible
 .topic-workspace { align-items: start; }
 .management-password-warning { display: flex; align-items: flex-start; gap: 10px; margin: 16px 0 20px; padding: 13px 15px; border: 1px solid #e4c36f; border-radius: 13px; color: #6b4c08; background: #fff8dc; font-size: .78rem; line-height: 1.5; }
 .management-password-warning strong { flex: 0 0 auto; }
+.management-table-wrap { width: 100%; overflow-x: auto; border: 1px solid var(--line); border-radius: 18px; background: #fff; }
+.content table { border-collapse: collapse; }
+.content table th, .content table td { overflow-wrap: anywhere; }
+.content table tbody tr { transition: background-color .15s ease; }
+.content table tbody tr:hover { background: rgba(255, 248, 241, .72); }
+.management-table { width: 100%; min-width: 900px; border-collapse: collapse; }
+.management-table th, .management-table td { padding: 14px 16px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+.management-table th { color: var(--muted); background: #fff8f1; font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; white-space: nowrap; }
+.management-table tbody tr:last-child td { border-bottom: 0; }
+.management-table td:first-child strong, .management-table td:first-child span, .table-module-list { display: block; }
+.management-table td:first-child span, .table-module-list { margin-top: 3px; color: var(--muted); font-size: .76rem; }
+.table-module-list strong { display: inline; color: var(--ink); }
+.management-table__actions { flex-wrap: wrap; min-width: 240px; }
+.management-table__actions .ghost-button { padding: 8px 11px; }
+.management-table--materials { min-width: 1080px; table-layout: fixed; }
+.management-table--materials th:nth-child(1) { width: 27%; }
+.management-table--materials th:nth-child(2) { width: 9%; }
+.management-table--materials th:nth-child(3) { width: 12%; }
+.management-table--materials th:nth-child(4) { width: 10%; }
+.management-table--materials th:nth-child(5) { width: 15%; }
+.management-table--materials th:nth-child(6) { width: 8%; }
+.management-table--materials th:nth-child(7) { width: 19%; }
+.management-table--approvals { min-width: 1180px; table-layout: fixed; }
+.management-table--approvals th:nth-child(1) { width: 6%; }
+.management-table--approvals th:nth-child(2) { width: 24%; }
+.management-table--approvals th:nth-child(3) { width: 8%; }
+.management-table--approvals th:nth-child(4) { width: 14%; }
+.management-table--approvals th:nth-child(5) { width: 18%; }
+.management-table--approvals th:nth-child(6) { width: 15%; }
+.management-table--approvals th:nth-child(7) { width: 15%; }
+.management-table__actions form { margin: 0; }
+.status-pill { display: inline-flex; padding: 5px 9px; border-radius: 999px; color: #7b4e0b; background: #fff0c8; font-size: .68rem; font-weight: 800; white-space: nowrap; }
+.status-pill--active { color: #17603f; background: #dff4e8; }
+.required-marker { margin-left: 5px; padding: 2px 6px; border-radius: 999px; color: #8e300a; background: #fff0e4; font-size: .6rem; font-weight: 850; text-transform: uppercase; }
+.form-error-summary { margin: 16px 0; padding: 14px 16px; border: 1px solid #df8c77; border-radius: 14px; color: #84270f; background: #fff1ed; }
+.form-error-summary p { margin: 4px 0 0; }
+.role-tour[hidden] { display: none; }
+.role-tour { position: fixed; inset: 0; z-index: 180; pointer-events: none; }
+.role-tour__backdrop { position: absolute; inset: 0; background: rgba(28, 20, 16, .3); backdrop-filter: blur(1px); }
+.role-tour__card { position: absolute; right: 26px; bottom: 26px; width: min(430px, calc(100vw - 32px)); padding: 24px; border: 1px solid rgba(239,91,33,.3); border-radius: 22px; background: #fff; box-shadow: 0 28px 80px rgba(35,20,12,.28); pointer-events: auto; }
+.role-tour__card h2 { margin: 5px 0 10px; }
+.role-tour__card > p:not(.eyebrow) { color: var(--muted); line-height: 1.65; }
+.role-tour__progress, .role-tour__actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.role-tour__progress { color: #98340f; font-size: .72rem; font-weight: 850; }
+.role-tour__progress button { border: 0; color: var(--muted); background: transparent; cursor: pointer; }
+.role-tour__actions { margin-top: 20px; }
+.tour-highlight { position: relative; z-index: 181 !important; outline: 4px solid #ffd2b8; outline-offset: 4px; box-shadow: 0 0 0 9999px rgba(28,20,16,.08); }
+@media (max-width: 680px) { .role-tour__card { right: 16px; bottom: 16px; } }
+.module-allocation-fieldset { margin: 18px 0; padding: 18px; border: 1px solid var(--line); border-radius: 16px; }
+.module-allocation-fieldset legend { padding: 0 6px; font-weight: 850; }
+.module-allocation-fieldset ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; padding: 0; list-style: none; }
+.module-allocation-fieldset li label { display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
 
 .module-settings-shell { max-width: 980px; margin: 0 auto; padding: 30px; border-radius: 30px; }
 .module-settings-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
@@ -2190,6 +2242,14 @@ input:focus, textarea:focus, select:focus, button:focus-visible, a:focus-visible
     .module-choice-grid { grid-template-columns: 1fr; }
     .module-settings-heading, .module-settings-actions { align-items: flex-start; flex-direction: column; }
     .module-settings-actions .primary-button { width: 100%; justify-content: center; }
+    .management-table, .management-table--materials, .management-table--approvals { min-width: 0; table-layout: auto; }
+    .management-table thead { display: none; }
+    .management-table, .management-table tbody, .management-table tr, .management-table td { display: block; width: 100%; }
+    .management-table tr { padding: 10px; border-bottom: 1px solid var(--line); }
+    .management-table td { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 10px; padding: 8px; border: 0; }
+    .management-table td::before { content: attr(data-label); color: var(--muted); font-size: .68rem; font-weight: 800; text-transform: uppercase; }
+    .management-table__actions { min-width: 0; flex-wrap: wrap; }
+    .module-allocation-fieldset ul { grid-template-columns: 1fr; }
 }
 
 .body--survey-open { overflow: hidden; }

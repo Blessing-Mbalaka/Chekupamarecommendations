@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block title %}Topic management · Learning Navigator{% endblock %}
+{% block content %}
+<section class="course-management-hero">
+    <div><p class="eyebrow">{% if is_course_admin %}Administrator oversight{% else %}Lecturer workspace{% endif %}</p><h1>Topic management</h1><p>Add and maintain teaching topics for the modules available to you. Course and lecturer allocation remain under administrator control.</p></div>
+    <div class="course-management-code"><span>Available modules</span><strong>{{ available_courses|length }}</strong><small>{% if is_course_admin %}All institution modules{% else %}Only modules assigned to you{% endif %}</small></div>
+</section>
+<section class="management-grid management-grid--top topic-workspace">
+    <article class="management-card">
+        <p class="eyebrow">Curriculum</p><h2>Current topics</h2>
+        <div class="module-stack">{% for module in available_courses %}<div class="module-admin-card"><div><strong>{{ module.code }} · {{ module.title }}</strong></div><div class="topic-chips">{% for topic in module.topics.all %}<a href="?edit=topic&amp;id={{ topic.pk }}">{{ topic.title }}</a>{% empty %}<span>No topics yet</span>{% endfor %}</div></div>{% empty %}<p class="empty-management-state">No modules are assigned to you yet. Ask your institution administrator to allocate modules in User Management.</p>{% endfor %}</div>
+    </article>
+    <article class="management-card">
+        <p class="eyebrow">Add topic</p><h2>{% if topic_form.instance.pk %}Edit topic{% else %}New topic{% endif %}</h2><p class="muted">Choose a module and describe the unit of learning.</p>
+        <form method="post" class="management-form">{% csrf_token %}<input type="hidden" name="record_id" value="{{ topic_form.instance.pk|default:'' }}">{{ topic_form.as_p }}<button class="primary-button" type="submit">Save topic</button></form>
+    </article>
+</section>
+{% endblock %}

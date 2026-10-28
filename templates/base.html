@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}UJ Learning Navigator{% endblock %}</title>
     <meta name="theme-color" content="#ef5b21">
-    <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20261028-demo-password">
+    <link rel="stylesheet" href="{% static 'css/app.css' %}?v=20261028-management-layout">
 </head>
 <body data-track-path="{{ request.path }}">
     <div class="shell {% if not user.is_authenticated or '/login/' in request.path %}shell--public{% endif %}">
@@ -27,7 +27,8 @@
                         </div>
                     </div>
                     <nav class="nav-links">
-                        {% if user.role == 'admin' or user.is_superuser or user.role == 'lecturer' %}<a class="nav-link {% if '/institutions/course-management/' in request.path or '/institutions/structure/' in request.path %}nav-link--active{% endif %}" href="{% url 'institutions:course_management' %}"><span class="nav-icon" aria-hidden="true">▦</span><span>{% if user.role == 'lecturer' and not user.is_superuser %}Topic management{% else %}Course management{% endif %}</span></a>{% endif %}
+                        {% if user.role == 'admin' or user.is_superuser %}<a class="nav-link {% if '/institutions/course-management/' in request.path or '/institutions/structure/' in request.path %}nav-link--active{% endif %}" href="{% url 'institutions:course_management' %}#module-form"><span class="nav-icon" aria-hidden="true">＋</span><span>Add course / module</span></a>{% endif %}
+                        {% if user.role == 'admin' or user.is_superuser or user.role == 'lecturer' %}<a class="nav-link {% if '/institutions/topic-management/' in request.path %}nav-link--active{% endif %}" href="{% url 'institutions:topic_management' %}"><span class="nav-icon" aria-hidden="true">▦</span><span>Topic management</span></a>{% endif %}
                         <a href="{% url 'core:dashboard' %}" class="nav-link {% if request.path == '/dashboard/' %}nav-link--active{% endif %}">
                             <span class="nav-icon" aria-hidden="true">
                                 <svg viewBox="0 0 24 24" focusable="false"><path d="M3 13h8V3H3zm10 8h8V11h-8zM3 21h8v-6H3zm10-10h8V3h-8z"/></svg>
@@ -141,6 +142,7 @@
                             <strong>Next best action</strong>
                             <p>Use the sidebar as your study trail: profile, materials, then guided chat.</p>
                         </div>
+                        <button type="button" class="ghost-button ghost-button--sidebar" data-tour-replay><span class="nav-icon" aria-hidden="true">?</span><span>Replay tutorial</span></button>
                         <form method="post" action="{% url 'logout' %}">
                             {% csrf_token %}
                             <button type="submit" class="ghost-button ghost-button--sidebar">
@@ -175,8 +177,75 @@
     </div>
     {% include "analytics_app/_questionnaire_modal.html" %}
     {% if user.is_authenticated and '/login/' not in request.path %}
+        <aside class="role-tour" data-role-tour data-tour-user="{{ user.username|escape }}" data-tour-role="{{ user.role }}" hidden aria-live="polite">
+            <div class="role-tour__backdrop"></div>
+            <section class="role-tour__card" role="dialog" aria-modal="true" aria-labelledby="role-tour-title">
+                <div class="role-tour__progress"><span data-tour-progress></span><button type="button" data-tour-skip>Skip tutorial</button></div>
+                <p class="eyebrow" data-tour-eyebrow>Guided tutorial</p><h2 id="role-tour-title" data-tour-title></h2><p data-tour-copy></p>
+                <div class="role-tour__actions"><button type="button" class="ghost-button" data-tour-back>Back</button><button type="button" class="primary-button" data-tour-next>Next</button></div>
+            </section>
+        </aside>
         <script>
         (() => {
+            const tourRoot = document.querySelector('[data-role-tour]');
+            const tourReplay = document.querySelector('[data-tour-replay]');
+            const role = tourRoot?.dataset.tourRole;
+            const tourKey = `learning-navigator-tour-v1:${tourRoot?.dataset.tourUser}:${role}`;
+            const commonStart = [{ title: 'Your dashboard', copy: 'This is your role-specific home. It summarises assigned modules, recent activity, progress, and the next actions available to your account.', url: '{% url "core:dashboard" %}' }];
+            const tours = {
+                student: [...commonStart,
+                    { title: 'Your profile', copy: 'Review your account identity, institution, role, and personal settings. Your learning history remains attached to this account.', url: '{% url "accounts:profile" %}' },
+                    { title: 'Module settings', copy: 'Select the modules you are enrolled in. These choices control which approved materials, quizzes, recommendations, and module-grounded chatbot answers you can access.', url: '{% url "accounts:module_settings" %}' },
+                    { title: 'Learning materials', copy: 'Browse lecturer-approved documents and external resources for your modules. Open source records, previews, and full documents without leaving the learning workflow.', url: '{% url "learning:material_list" %}' },
+                    { title: 'Quizzes', copy: 'Take published module quizzes, submit answers, and review your results. Draft quizzes remain hidden until teaching staff review and publish them.', url: '{% url "learning:quiz_list" %}' },
+                    { title: 'Study chatbot', copy: 'Choose a module before asking a question. Answers are grounded in that module’s indexed and approved materials, with citations and optional external recommendations kept clearly separate.', url: '{% url "chatbot:chat" %}' }],
+                lecturer: [...commonStart,
+                    { title: 'Topic management', copy: 'Create and edit teaching topics only inside modules assigned to you. The institution administrator controls module creation and lecturer allocation.', url: '{% url "institutions:topic_management" %}' },
+                    { title: 'Learning materials', copy: 'See validated material across modules you teach. Material uploaded by another lecturer in the same module is visible for coordination but remains read-only.', url: '{% url "learning:material_list" %}' },
+                    { title: 'Material approvals', copy: 'Review API-discovered resources before students see them. Inspect the source, select one or many records, and approve only material appropriate for the module.', url: '{% url "learning:material_approval_list" %}' },
+                    { title: 'Manage your uploads', copy: 'Upload, edit, index, and delete your own teaching material. The uploader label provides accountability; colleague uploads are visible but cannot be changed by you.', url: '{% url "core:manage_materials" %}' },
+                    { title: 'Quiz Builder', copy: 'Create a draft quiz, add questions manually or generate drafts from indexed material, review every question, and publish only when it is ready for students.', url: '{% url "learning:quiz_list" %}' },
+                    { title: 'Study chatbot', copy: 'Test module-grounded answers and citations from the teaching perspective. This helps verify that uploaded and indexed content supports useful student responses.', url: '{% url "chatbot:chat" %}' },
+                    { title: 'Analytics', copy: 'Review site use and question patterns to identify engagement, difficult topics, and opportunities to improve teaching content.', url: '{% url "analytics_app:site" %}' }],
+                admin: [...commonStart,
+                    { title: 'Add courses and modules', copy: 'Maintain the institution identity and code, create departments, and add or edit modules. Lecturer applicants cannot choose modules; allocation remains an administrator decision.', url: '{% url "institutions:course_management" %}#module-form' },
+                    { title: 'Topic management', copy: 'Oversee topics across the institution. Lecturers use this same dedicated workspace but see only modules allocated to them.', url: '{% url "institutions:topic_management" %}' },
+                    { title: 'User and role management', copy: 'Review pending applicants, assign one or many modules, activate accounts, deactivate departing staff, and resend secure setup links. Activation sends the approved allocation by email.', url: '{% url "core:manage_users" %}' },
+                    { title: 'Material oversight', copy: 'View uploads by course and uploader, inspect indexing chunks, and edit or remove any material when governance requires it—even after a lecturer account is deactivated or deleted.', url: '{% url "core:manage_materials" %}' },
+                    { title: 'Material approvals', copy: 'Oversee API-discovered recommendations before release to students. Approval guards remain in place for every module.', url: '{% url "learning:material_approval_list" %}' },
+                    { title: 'Quiz Builder', copy: 'Oversee draft and published quizzes, question review, source material, and module assignment.', url: '{% url "learning:quiz_list" %}' },
+                    { title: 'Analytics and health', copy: 'Use analytics to review engagement and recurring questions, then System Health to confirm operational dependencies and configuration.', url: '{% url "analytics_app:site" %}' },
+                    { title: 'Study chatbot', copy: 'Verify the final student-facing experience: module selection, grounded responses, citations, and separately presented additional resources.', url: '{% url "chatbot:chat" %}' }]
+            };
+            const steps = tours[role] || commonStart;
+            const params = new URLSearchParams(location.search);
+            let tourStep = Math.max(0, Math.min(Number(params.get('step') || 0), steps.length - 1));
+            const goToStep = (index) => {
+                const step = steps[index];
+                const target = new URL(step.url, location.origin);
+                target.searchParams.set('tour', '1'); target.searchParams.set('step', String(index));
+                location.href = target.href;
+            };
+            const finishTour = () => { localStorage.setItem(tourKey, 'complete'); tourRoot.hidden = true; document.querySelectorAll('.tour-highlight').forEach(el => el.classList.remove('tour-highlight')); };
+            const showTour = () => {
+                const step = steps[tourStep];
+                tourRoot.hidden = false;
+                tourRoot.querySelector('[data-tour-title]').textContent = step.title;
+                tourRoot.querySelector('[data-tour-copy]').textContent = step.copy;
+                tourRoot.querySelector('[data-tour-progress]').textContent = `Step ${tourStep + 1} of ${steps.length}`;
+                tourRoot.querySelector('[data-tour-back]').disabled = tourStep === 0;
+                tourRoot.querySelector('[data-tour-next]').textContent = tourStep === steps.length - 1 ? 'Finish tutorial' : 'Next page';
+                const targetPath = new URL(step.url, location.origin).pathname;
+                const nav = [...document.querySelectorAll('.nav-link')].find(link => new URL(link.href, location.origin).pathname === targetPath);
+                const heading = document.querySelector('main h1, main h2');
+                (nav || heading)?.classList.add('tour-highlight');
+            };
+            tourRoot?.querySelector('[data-tour-next]')?.addEventListener('click', () => tourStep === steps.length - 1 ? finishTour() : goToStep(tourStep + 1));
+            tourRoot?.querySelector('[data-tour-back]')?.addEventListener('click', () => { if (tourStep > 0) goToStep(tourStep - 1); });
+            tourRoot?.querySelector('[data-tour-skip]')?.addEventListener('click', finishTour);
+            tourReplay?.addEventListener('click', () => { localStorage.removeItem(tourKey); goToStep(0); });
+            if (params.get('tour') === '1' || (!localStorage.getItem(tourKey) && location.pathname === '{% url "core:dashboard" %}')) showTour();
+
             const getCsrfToken = () => {
                 const match = document.cookie.match(/csrftoken=([^;]+)/);
                 return match ? decodeURIComponent(match[1]) : "";

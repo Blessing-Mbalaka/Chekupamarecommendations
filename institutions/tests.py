@@ -4,6 +4,7 @@ from django.test import TestCase, override_settings
 from django.db import transaction
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core import mail
 from django.urls import reverse
 from accounts.models import User
 from core.forms_manage import ManagedUserForm
@@ -65,6 +66,26 @@ class InstitutionTests(TestCase):
         self.assertFalse(user.is_staff or user.is_superuser)
         self.assertFalse(user.courses_enrolled.exists())
 
+    def test_lecturer_application_is_pending_silent_and_has_no_module_control(self):
+        response = self.client.post(reverse('institutions:join_lecturer'), {
+            'institution_code': self.a.slug,
+            'username': 'applicant',
+            'first_name': 'New',
+            'last_name': 'Lecturer',
+            'email': 'applicant@example.org',
+        })
+        self.assertRedirects(response, reverse('login'))
+        applicant = User._base_manager.get(username='applicant')
+        self.assertEqual(applicant.institution_id, self.a.pk)
+        self.assertEqual(applicant.role, 'lecturer')
+        self.assertFalse(applicant.is_active)
+        self.assertFalse(applicant.has_usable_password())
+        self.assertFalse(applicant.courses_taught.exists())
+        self.assertEqual(len(mail.outbox), 0)
+
+        page = self.client.get(reverse('institutions:join_lecturer'))
+        self.assertNotContains(page, 'name="courses"')
+
     def test_invalid_invite_and_weak_password_rejected(self):
         self.client.post(reverse('institutions:join'), {'invitation_code': 'wrong', 'username': 'bad', 'email': 'bad@new.org', 'password1': '123', 'password2': '123'})
         self.assertFalse(User._base_manager.filter(username='bad').exists())
@@ -121,23 +142,21 @@ class InstitutionTests(TestCase):
 
     def test_lecturer_manages_topics_only_for_assigned_modules(self):
         self.client.force_login(self.lecturer)
-        response = self.client.get(reverse('institutions:course_management'))
+        response = self.client.get(reverse('institutions:topic_management'))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Topic management')
         self.assertContains(response, self.module.code)
         self.assertNotContains(response, self.unassigned.code)
 
-        response = self.client.post(reverse('institutions:course_management'), {
-            'action': 'topic',
+        response = self.client.post(reverse('institutions:topic_management'), {
             'topic-course': self.module.pk,
             'topic-title': 'Lecturer topic',
             'topic-description': 'Created by the assigned lecturer.',
         })
-        self.assertRedirects(response, reverse('institutions:course_management'))
+        self.assertRedirects(response, reverse('institutions:topic_management'))
         self.assertTrue(Topic._base_manager.filter(course=self.module, title='Lecturer topic').exists())
 
-        response = self.client.post(reverse('institutions:course_management'), {
-            'action': 'topic',
+        response = self.client.post(reverse('institutions:topic_management'), {
             'topic-course': self.unassigned.pk,
             'topic-title': 'Forbidden topic',
         })
@@ -152,7 +171,7 @@ class InstitutionTests(TestCase):
             'module-code': 'FORBIDDEN',
             'module-title': 'Forbidden module',
         })
-        self.assertEqual(response.status_code, 403)
+        self.assertRedirects(response, reverse('institutions:topic_management'))
         self.assertFalse(Course._base_manager.filter(code='FORBIDDEN').exists())
 
     def test_structure_creates_scoped_department_module_topic(self):
@@ -164,7 +183,7 @@ class InstitutionTests(TestCase):
         self.assertEqual(response.status_code, 302)
         module = Course._base_manager.get(code='ENG101')
         self.assertEqual(module.institution_id, self.b.pk)
-        self.client.post(reverse('institutions:structure'), {'action': 'topic', 'topic-course': module.pk, 'topic-title': 'Introduction'})
+        self.client.post(reverse('institutions:topic_management'), {'topic-course': module.pk, 'topic-title': 'Introduction'})
         self.assertTrue(Topic._base_manager.filter(course=module, institution=self.b).exists())
 
     def test_cross_institution_forms_and_writes_rejected(self):

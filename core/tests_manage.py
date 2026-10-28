@@ -1,5 +1,6 @@
 from django.conf import settings
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 from django.contrib.auth import get_user_model
 from django.core import mail
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -27,7 +28,11 @@ class ManagementTests(TestCase):
         self.phy = Course.objects.create(code="PHY101", title="Physics")
         self.sys.lecturers.add(self.lecturer)
         self.sys_material = Material.objects.create(
-            course=self.sys, title="Sys notes", source_type=Material.SourceType.FILE, is_validated=True
+            course=self.sys,
+            title="Sys notes",
+            source_type=Material.SourceType.FILE,
+            is_validated=True,
+            uploaded_by=self.lecturer,
         )
         self.phy_material = Material.objects.create(
             course=self.phy, title="Physics notes", source_type=Material.SourceType.FILE, is_validated=True
@@ -82,41 +87,70 @@ class ManagementTests(TestCase):
         self.assertIn("/accounts/reset/", mail.outbox[0].body)
         self.assertNotIn("EMAIL_HOST_PASSWORD", mail.outbox[0].body)
 
-    def test_admin_can_create_demo_user_with_temporary_password_without_email(self):
+    def test_admin_creates_pending_user_without_email(self):
         self.client.force_login(self.admin)
         response = self.client.post(
             reverse("core:manage_user_new"),
             {
-                "username": "demo-with-password",
-                "email": "demo-with-password@example.com",
-                "role": UserRole.STUDENT,
-                "temporary_password": "Demo-Access-Password-472!",
-                "confirm_temporary_password": "Demo-Access-Password-472!",
+                "username": "pending-lecturer",
+                "email": "pending-lecturer@example.com",
+                "role": UserRole.LECTURER,
                 "courses": [self.sys.pk],
+            },
+        )
+        self.assertRedirects(response, reverse("core:manage_users"))
+        created = User.objects.get(username="pending-lecturer")
+        self.assertFalse(created.is_active)
+        self.assertFalse(created.has_usable_password())
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_activation_sends_setup_link_and_approved_modules(self):
+        pending = User.objects.create_user(
+            "pending", "pending@example.com", role=UserRole.LECTURER, is_active=False
+        )
+        pending.set_unusable_password()
+        pending.save(update_fields=["password"])
+        pending.courses_taught.add(self.sys)
+        self.client.force_login(self.admin)
+        response = self.client.post(reverse("core:manage_user_toggle", args=[pending.pk]))
+        self.assertRedirects(response, reverse("core:manage_users"))
+        pending.refresh_from_db()
+        self.assertTrue(pending.is_active)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, [pending.email])
+        self.assertIn("/accounts/reset/", mail.outbox[0].body)
+        self.assertIn("SYS101", mail.outbox[0].body)
+        self.assertTrue(mail.outbox[0].alternatives)
+        self.assertIn("Create your secure password", mail.outbox[0].alternatives[0].content)
+
+    @patch("core.manage_views.send_account_setup_email", side_effect=RuntimeError("SMTP unavailable"))
+    def test_failed_activation_email_keeps_account_pending(self, mocked_send):
+        pending = User.objects.create_user(
+            "pending-failure", "pending-failure@example.com", role=UserRole.LECTURER, is_active=False
+        )
+        self.client.force_login(self.admin)
+        response = self.client.post(reverse("core:manage_user_toggle", args=[pending.pk]), follow=True)
+        pending.refresh_from_db()
+        self.assertFalse(pending.is_active)
+        self.assertContains(response, "account remains pending")
+        mocked_send.assert_called_once()
+
+    def test_active_lecturer_is_emailed_when_module_allocation_changes(self):
+        self.client.force_login(self.admin)
+        response = self.client.post(
+            reverse("core:manage_user_edit", args=[self.lecturer.pk]),
+            {
+                "username": self.lecturer.username,
+                "email": self.lecturer.email,
+                "role": UserRole.LECTURER,
+                "courses": [self.sys.pk, self.phy.pk],
                 "is_active": "on",
             },
         )
         self.assertRedirects(response, reverse("core:manage_users"))
-        created = User.objects.get(username="demo-with-password")
-        self.assertTrue(created.check_password("Demo-Access-Password-472!"))
-        self.assertEqual(len(mail.outbox), 0)
-
-    def test_temporary_password_confirmation_must_match(self):
-        self.client.force_login(self.admin)
-        response = self.client.post(
-            reverse("core:manage_user_new"),
-            {
-                "username": "mismatched-password",
-                "email": "mismatched-password@example.com",
-                "role": UserRole.STUDENT,
-                "temporary_password": "Demo-Access-Password-472!",
-                "confirm_temporary_password": "Different-Password-629!",
-                "is_active": "on",
-            },
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "temporary passwords do not match")
-        self.assertFalse(User.objects.filter(username="mismatched-password").exists())
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("module allocation", mail.outbox[0].subject.lower())
+        self.assertIn("PHY101", mail.outbox[0].body)
 
     def test_changing_role_moves_course_relationship(self):
         self.sys.students.add(self.student)
@@ -157,6 +191,70 @@ class ManagementTests(TestCase):
             404,
         )
         self.assertEqual(self.phy_material.content_chunks.count(), 3)
+
+    def test_lecturer_can_see_but_cannot_change_colleagues_material_in_same_course(self):
+        colleague = User.objects.create_user(
+            "colleague-lecturer", "colleague-lecturer@example.com", "pw", role=UserRole.LECTURER
+        )
+        self.sys.lecturers.add(colleague)
+        colleague_material = Material.objects.create(
+            course=self.sys,
+            title="Colleague notes",
+            source_type=Material.SourceType.FILE,
+            is_validated=True,
+            uploaded_by=colleague,
+        )
+        self.client.force_login(self.lecturer)
+        response = self.client.get(reverse("core:manage_materials"))
+        self.assertContains(response, "Sys notes")
+        self.assertContains(response, "Colleague notes")
+        self.assertContains(response, "View only")
+        self.assertEqual(
+            self.client.get(reverse("core:manage_material_edit", args=[colleague_material.pk])).status_code,
+            404,
+        )
+        self.assertEqual(
+            self.client.post(reverse("core:manage_material_delete", args=[colleague_material.pk])).status_code,
+            404,
+        )
+
+    def test_admin_can_oversee_all_lecturer_uploads(self):
+        colleague = User.objects.create_user(
+            "oversight-lecturer", "oversight-lecturer@example.com", "pw", role=UserRole.LECTURER
+        )
+        self.sys.lecturers.add(colleague)
+        Material.objects.create(
+            course=self.sys,
+            title="Oversight notes",
+            source_type=Material.SourceType.FILE,
+            is_validated=True,
+            uploaded_by=colleague,
+        )
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse("core:manage_materials"), {"course": self.sys.pk})
+        self.assertContains(response, "Sys notes")
+        self.assertContains(response, "Oversight notes")
+
+    def test_material_survives_lecturer_deletion_and_remains_admin_managed(self):
+        departing = User.objects.create_user(
+            "departing-lecturer", "departing@example.com", "pw", role=UserRole.LECTURER
+        )
+        self.sys.lecturers.add(departing)
+        material = Material.objects.create(
+            course=self.sys,
+            title="Departing lecturer notes",
+            source_type=Material.SourceType.FILE,
+            source_provider="Uploaded by departing-lecturer",
+            is_validated=True,
+            uploaded_by=departing,
+        )
+        departing.delete()
+        material.refresh_from_db()
+        self.assertIsNone(material.uploaded_by)
+        self.assertEqual(material.uploader_label, "departing-lecturer")
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse("core:manage_material_edit", args=[material.pk]))
+        self.assertEqual(response.status_code, 200)
 
     def test_lecturer_cannot_upload_to_other_course(self):
         self.client.force_login(self.lecturer)

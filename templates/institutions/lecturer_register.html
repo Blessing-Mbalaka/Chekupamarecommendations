@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% block title %}Lecturer application · Learning Navigator{% endblock %}
+{% block content %}
+<section class="hero-card lecturer-application">
+    <div>
+        <p class="eyebrow">Lecturer onboarding</p>
+        <h1>Apply for lecturer access</h1>
+        <p>Apply with your institution code and contact details. Your account remains inactive until an administrator assigns your teaching modules and approves access.</p>
+        <div class="grounding-notice"><strong>No email is sent when you apply.</strong> After an administrator assigns one or more modules and activates the account, you receive one secure email to create your password.</div>
+    </div>
+    <form method="post" id="lecturer-application-form" class="management-form">
+        {% csrf_token %}
+        {% if form.non_field_errors %}<div class="login-errors">{{ form.non_field_errors }}</div>{% endif %}
+        {% for field in form %}
+            <div class="lecturer-application__field">
+                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.help_text %}<small class="muted">{{ field.help_text }}</small>{% endif %}
+                {% if field.errors %}<div class="login-errors">{{ field.errors }}</div>{% endif %}
+            </div>
+        {% endfor %}
+        <button class="primary-button" type="submit">Submit for activation</button>
+        <p><a href="{% url 'login' %}">Back to sign in</a></p>
+    </form>
+</section>
+{% endblock %}

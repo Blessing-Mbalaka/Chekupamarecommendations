@@ -7,7 +7,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from accounts.models import UserRole
-from accounts.services.invitations import send_account_setup_email
+from accounts.services.invitations import send_account_setup_email, send_module_allocation_email
 from ingestion.models import ContentChunk
 from ingestion.services.vector_store import index_material, invalidate_retrieval_cache
 from learning.models import Course, Material
@@ -43,8 +43,13 @@ def _require_material_manager(request):
         raise PermissionDenied("Only lecturers and administrators can manage materials.")
 
 
-def _material_queryset(user):
-    return Material.objects.select_related("course", "topic").filter(course__in=_manageable_courses(user))
+def _material_queryset(user, *, own_only=False):
+    materials = Material.objects.select_related("course", "topic", "uploaded_by").filter(
+        course__in=_manageable_courses(user)
+    )
+    if own_only and user.role == UserRole.LECTURER and not user.is_superuser:
+        materials = materials.filter(uploaded_by=user)
+    return materials
 
 
 def _course_labels(user):
@@ -99,23 +104,41 @@ def user_edit_view(request, pk=None):
     form = ManagedUserForm(request.POST or None, instance=instance)
     if request.method == "POST" and form.is_valid():
         is_new = instance is None
+        was_active = bool(instance and instance.is_active)
+        previous_course_ids = set(instance.courses_taught.values_list("pk", flat=True)) if instance else set()
         user = form.save()
-        messages.success(request, f"Saved {user.username} as {user.get_role_display()}.")
-        if form.cleaned_data.get("temporary_password"):
-            messages.warning(
-                request,
-                "Temporary demo password saved. Share it manually and do not reuse it for a production account.",
-            )
-        elif is_new:
+        activated_now = user.is_active and not was_active
+        current_course_ids = set(user.courses_taught.values_list("pk", flat=True))
+        if activated_now:
             try:
                 send_account_setup_email(user, request)
             except Exception:
-                messages.warning(
+                user.is_active = False
+                user.save(update_fields=["is_active"])
+                messages.error(
                     request,
-                    "The account was saved, but the invitation could not be sent. Check SMTP settings, then use Send invite/reset.",
+                    "Activation email delivery failed, so the account remains pending. Check SMTP settings and activate it again.",
                 )
             else:
-                messages.success(request, f"Sent a secure account-setup link to {user.email}.")
+                messages.success(
+                    request,
+                    f"Activated {user.username} and emailed the secure password setup link with approved modules.",
+                )
+        else:
+            messages.success(request, f"Saved {user.username} as {user.get_role_display()}.")
+            allocation_changed = (
+                not is_new
+                and user.is_active
+                and user.role == UserRole.LECTURER
+                and previous_course_ids != current_course_ids
+            )
+            if allocation_changed:
+                try:
+                    send_module_allocation_email(user, request)
+                except Exception:
+                    messages.warning(request, "The module allocation was saved, but the notification email failed.")
+                else:
+                    messages.success(request, f"Emailed the updated module allocation to {user.email}.")
         return redirect("core:manage_users")
     return render(request, "manage/user_form.html", {"form": form, "managed_user": instance})
 
@@ -126,10 +149,25 @@ def user_deactivate_view(request, pk):
     user = get_object_or_404(User, pk=pk)
     if user.pk == request.user.pk:
         messages.error(request, "You cannot deactivate your own account.")
+    elif not user.is_active:
+        try:
+            send_account_setup_email(user, request)
+        except Exception:
+            messages.error(
+                request,
+                "Activation email delivery failed, so the account remains pending. Check SMTP settings and try again.",
+            )
+        else:
+            user.is_active = True
+            user.save(update_fields=["is_active"])
+            messages.success(
+                request,
+                f"Activated {user.username} and emailed the secure password setup link with approved modules.",
+            )
     else:
-        user.is_active = not user.is_active
+        user.is_active = False
         user.save(update_fields=["is_active"])
-        messages.success(request, f"{user.username} is now {'active' if user.is_active else 'deactivated'}.")
+        messages.success(request, f"{user.username} is now deactivated.")
     return redirect("core:manage_users")
 
 
@@ -177,7 +215,7 @@ def material_manage_list_view(request):
 def material_manage_edit_view(request, pk=None):
     _require_material_manager(request)
     courses = _manageable_courses(request.user)
-    instance = get_object_or_404(_material_queryset(request.user), pk=pk) if pk else None
+    instance = get_object_or_404(_material_queryset(request.user, own_only=True), pk=pk) if pk else None
     old_course_id = instance.course_id if instance else None
     form = ManagedMaterialForm(
         request.POST or None, request.FILES or None, instance=instance, courses=courses, prefix="material"
@@ -222,7 +260,7 @@ def material_manage_edit_view(request, pk=None):
 @require_POST
 def material_manage_delete_view(request, pk):
     _require_material_manager(request)
-    material = get_object_or_404(_material_queryset(request.user), pk=pk)
+    material = get_object_or_404(_material_queryset(request.user, own_only=True), pk=pk)
     title, course_id = material.title, material.course_id
     material.delete()
     invalidate_retrieval_cache(course_id)
@@ -233,7 +271,7 @@ def material_manage_delete_view(request, pk):
 @require_POST
 def material_manage_reindex_view(request, pk):
     _require_material_manager(request)
-    material = get_object_or_404(_material_queryset(request.user), pk=pk)
+    material = get_object_or_404(_material_queryset(request.user, own_only=True), pk=pk)
     try:
         chunks = index_material(material)
         if chunks:
@@ -247,7 +285,7 @@ def material_manage_reindex_view(request, pk):
 
 def material_chunks_view(request, pk):
     _require_material_manager(request)
-    material = get_object_or_404(_material_queryset(request.user), pk=pk)
+    material = get_object_or_404(_material_queryset(request.user, own_only=True), pk=pk)
     chunks = material.content_chunks.only(
         "id", "ordinal", "text", "page_number", "section_title", "token_count", "material_id"
     ).order_by("ordinal")
@@ -258,7 +296,7 @@ def material_chunks_view(request, pk):
 @require_POST
 def chunks_delete_view(request, pk):
     _require_material_manager(request)
-    material = get_object_or_404(_material_queryset(request.user), pk=pk)
+    material = get_object_or_404(_material_queryset(request.user, own_only=True), pk=pk)
     ids = [value for value in request.POST.getlist("chunk_ids") if value.isdigit()]
     if not ids:
         messages.error(request, "Select at least one chunk to delete.")

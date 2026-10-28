@@ -21,7 +21,7 @@ from django.conf.urls.static import static
 from django.urls import include, path, re_path
 from institutions.media import protected_media
 
-from accounts.views import DemoLoginView, superuser_login_view
+from accounts.views import InstitutionLoginView, superuser_login_view
 
 handler400 = 'core.error_views.bad_request'
 handler403 = 'core.error_views.permission_denied'
@@ -38,7 +38,7 @@ urlpatterns = [
     path('analytics/', include('analytics_app.urls')),
     path(
         'login/',
-        DemoLoginView.as_view(),
+        InstitutionLoginView.as_view(),
         name='login',
     ),
     path('curation/login/', superuser_login_view, name='superuser_login'),

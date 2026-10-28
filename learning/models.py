@@ -132,6 +132,15 @@ class Material(InstitutionOwnedModel):
         return reverse("learning:material_detail", args=[self.pk])
 
     @property
+    def uploader_label(self):
+        if self.uploaded_by_id:
+            return self.uploaded_by.get_full_name() or self.uploaded_by.username
+        prefix = "Uploaded by "
+        if self.source_provider.startswith(prefix):
+            return self.source_provider[len(prefix):]
+        return self.source_provider or "Unknown"
+
+    @property
     def effective_source_url(self):
         return self.external_url or self.original_source_url
 

@@ -48,17 +48,9 @@ class ActivationAwareAuthenticationForm(AuthenticationForm):
         return result
 
 
-class DemoLoginView(LoginView):
+class InstitutionLoginView(LoginView):
     template_name = "registration/login.html"
     authentication_form = ActivationAwareAuthenticationForm
-
-    extra_context = {
-        "demo_accounts": [
-            {"label": "Student Demo", "username": "demo_student", "password": "Password123!"},
-            {"label": "TA Demo", "username": "demo_ta", "password": "Password123!"},
-            {"label": "Lecturer Demo", "username": "demo_lecturer", "password": "Password123!"},
-        ]
-    }
 
     def get_success_url(self):
         user = self.request.user

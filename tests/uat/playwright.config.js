@@ -14,7 +14,7 @@ module.exports = defineConfig({
     command: '".venv\\Scripts\\python.exe" manage.py runserver 127.0.0.1:8010 --noreload --settings=config.uat_settings --no-color',
     cwd: path.resolve(__dirname, "../.."),
     url: "http://127.0.0.1:8010/login/",
-    reuseExistingServer: false,
+    reuseExistingServer: true,
     timeout: 30_000
   },
   use: {

@@ -25,28 +25,27 @@
 </section>
 
 <section class="panel">
-    {% for material in page %}
-        <article class="library-material-row">
-            <div>
-                <h4>{{ material.title }}</h4>
-                <p class="muted">
-                    {{ material.course.code }} · {{ material.get_source_type_display }}
-                    · {% if material.is_validated %}Approved{% else %}Pending{% endif %}
-                    · {{ material.chunk_total }} chunk{{ material.chunk_total|pluralize }}
-                </p>
-            </div>
-            <div class="button-row">
+    <div class="management-table-wrap"><table class="management-table management-table--materials"><thead><tr><th>Material</th><th>Module</th><th>Type</th><th>Status</th><th>Uploaded by</th><th>Chunks</th><th>Actions</th></tr></thead><tbody>
+    {% for material in page %}<tr>
+            <td data-label="Material"><strong>{{ material.title }}</strong></td>
+            <td data-label="Module">{{ material.course.code }}</td>
+            <td data-label="Type">{{ material.get_source_type_display }}</td>
+            <td data-label="Status"><span class="status-pill {% if material.is_validated %}status-pill--active{% endif %}">{% if material.is_validated %}Approved{% else %}Pending{% endif %}</span></td>
+            <td data-label="Uploaded by">{{ material.uploader_label }}</td>
+            <td data-label="Chunks">{{ material.chunk_total }}</td>
+            <td data-label="Actions"><div class="button-row management-table__actions">
+                {% if user.is_superuser or user.role == 'admin' or material.uploaded_by_id == user.id %}
                 <a class="ghost-button" href="{% url 'core:manage_material_chunks' material.pk %}">Chunks</a>
                 <a class="ghost-button" href="{% url 'core:manage_material_edit' material.pk %}">Edit</a>
                 <form method="post" action="{% url 'core:manage_material_delete' material.pk %}" onsubmit="return confirm('Delete this material and all its chunks?');">
                     {% csrf_token %}
                     <button type="submit" class="ghost-button">Delete</button>
                 </form>
-            </div>
-        </article>
-    {% empty %}
-        <p class="muted">No materials found.</p>
-    {% endfor %}
+                {% else %}<span class="muted">View only</span>{% endif %}
+            </div></td>
+        </tr>
+    {% empty %}<tr><td colspan="7" class="muted">No materials found.</td></tr>{% endfor %}
+    </tbody></table></div>
     {% if page.has_other_pages %}
         <div class="button-row">
             {% if page.has_previous %}<a class="ghost-button" href="?page={{ page.previous_page_number }}&q={{ filters.q|urlencode }}&course={{ filters.course }}&state={{ filters.state }}">Previous</a>{% endif %}

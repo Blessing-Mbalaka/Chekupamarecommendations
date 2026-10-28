@@ -1,0 +1,10 @@
+<!doctype html><html><body style="margin:0;padding:0;background:#f4f1ed;font-family:Arial,sans-serif;color:#26211e">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f1ed;padding:32px 12px"><tr><td align="center">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;background:#fff;border-radius:22px;overflow:hidden;box-shadow:0 12px 36px rgba(70,35,16,.12)">
+<tr><td style="padding:28px 34px;background:linear-gradient(135deg,#ef5b21,#a9380c);color:#fff"><div style="font-size:12px;letter-spacing:1.5px;text-transform:uppercase;opacity:.85">Learning Navigator</div><h1 style="margin:8px 0 0;font-size:27px;line-height:1.2">Your account is active</h1></td></tr>
+<tr><td style="padding:34px"><p style="margin:0 0 16px;font-size:17px">Hello {{ recipient_name }},</p><p style="margin:0 0 22px;line-height:1.65;color:#5e554f">An administrator has approved your lecturer access to <strong>{{ institution_name }}</strong>.</p>
+<div style="padding:18px;border:1px solid #f0d5c4;border-radius:14px;background:#fff8f2"><strong style="color:#98340f">Approved teaching modules</strong>{% if modules %}{% for module in modules %}<div style="margin-top:10px;padding:10px 12px;border-radius:10px;background:#fff"><strong>{{ module.code }}</strong> · {{ module.title }}</div>{% endfor %}{% else %}<p style="margin:9px 0 0;color:#6b625c">No teaching modules are currently allocated. Contact your administrator before signing in.</p>{% endif %}</div>
+<p style="margin:26px 0;text-align:center"><a href="{{ setup_url }}" style="display:inline-block;padding:14px 24px;border-radius:12px;background:#ef5b21;color:#fff;text-decoration:none;font-weight:bold">Create your secure password</a></p>
+<p style="margin:0;color:#716862;font-size:13px;line-height:1.55">This secure link is for you only. No password or email-server credential is included. If you did not expect this invitation, ignore this message.</p></td></tr>
+<tr><td style="padding:18px 34px;background:#2e2926;color:#d9d3cf;font-size:12px">{{ institution_name }} · Learning Navigator</td></tr></table>
+</td></tr></table></body></html>

@@ -49,7 +49,7 @@
                 <div class="module-stack">
                     {% for module in department.modules.all %}
                         <div class="module-admin-card">
-                            <div><strong>{{ module.code }} · {{ module.title }}</strong><a href="?edit=module&amp;id={{ module.pk }}">Edit module</a></div>
+                            <div><strong>{{ module.code }} · {{ module.title }}</strong><span><a href="{% url 'core:manage_materials' %}?course={{ module.pk }}">View uploads</a> · <a href="?edit=module&amp;id={{ module.pk }}">Edit module</a></span></div>
                             <p>{{ module.description|default:"No module description yet." }}</p>
                             <div class="topic-chips">
                                 {% for topic in module.topics.all %}<a href="?edit=topic&amp;id={{ topic.pk }}">{{ topic.title }}</a>{% empty %}<span>No topics added by lecturer yet</span>{% endfor %}
@@ -66,13 +66,10 @@
 
 <section class="management-grid management-grid--admin-forms">
     <article class="management-card"><p class="eyebrow">Step 1</p><h2>{% if department_form.instance.pk %}Edit department{% else %}Add department{% endif %}</h2><p class="muted">Create the academic unit that owns the module.</p><form method="post" class="management-form">{% csrf_token %}<input type="hidden" name="action" value="department"><input type="hidden" name="record_id" value="{{ department_form.instance.pk|default:'' }}">{{ department_form.as_p }}<button class="primary-button" type="submit">Save department</button></form></article>
-    <article class="management-card"><p class="eyebrow">Step 2</p><h2>{% if module_form.instance.pk %}Edit module{% else %}Add module{% endif %}</h2><p class="muted">Once saved, assign a lecturer from User management.</p><form method="post" class="management-form">{% csrf_token %}<input type="hidden" name="action" value="module"><input type="hidden" name="record_id" value="{{ module_form.instance.pk|default:'' }}">{{ module_form.as_p }}<button class="primary-button" type="submit">Save module</button></form></article>
+    <article class="management-card" id="module-form"><p class="eyebrow">Step 2</p><h2>{% if module_form.instance.pk %}Edit module{% else %}Add module{% endif %}</h2><p class="muted">Once saved, assign one or more lecturers from User management.</p><form method="post" class="management-form">{% csrf_token %}<input type="hidden" name="action" value="module"><input type="hidden" name="record_id" value="{{ module_form.instance.pk|default:'' }}">{{ module_form.as_p }}<button class="primary-button" type="submit">Save module</button></form></article>
 </section>
 
-<details class="management-card optional-topic-card" {% if topic_form.errors or topic_form.instance.pk %}open{% endif %}>
-    <summary><span><small>Optional admin action</small><strong>{% if topic_form.instance.pk %}Edit topic{% else %}Add a topic now{% endif %}</strong></span><span aria-hidden="true">+</span></summary>
-    <div class="optional-topic-card__body"><p class="muted">You can leave this for the lecturer. A module does not require a topic before it can be assigned or used.</p><form method="post" class="management-form">{% csrf_token %}<input type="hidden" name="action" value="topic"><input type="hidden" name="record_id" value="{{ topic_form.instance.pk|default:'' }}">{{ topic_form.as_p }}<button class="secondary-button" type="submit">Save optional topic</button></form></div>
-</details>
+<section class="management-card optional-topic-card"><p class="eyebrow">Topic workspace</p><h2>Add or review topics separately</h2><p class="muted">Lecturers maintain topics on their own dedicated page. Administrators can also open it for oversight.</p><a class="secondary-button" href="{% url 'institutions:topic_management' %}">Open topic management</a></section>
 {% else %}
 <section class="course-management-hero">
     <div><p class="eyebrow">Lecturer workspace</p><h1>Topic management</h1><p>Add and maintain the teaching topics for modules assigned to you. Your institution administrator creates the departments and modules.</p></div>
